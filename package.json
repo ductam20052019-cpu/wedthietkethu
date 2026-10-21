@@ -1,0 +1,35 @@
+{
+  "name": "tam-gui-letter-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "T?m g?i ? D?ch v? thi?t k? v? chia s? th? ch?c m?ng t??ng t?c",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:assets": "node scripts/build-letter-assets.mjs",
+    "build:hosting": "npm run build:assets && node scripts/build-hosting.mjs",
+    "deploy": "firebase deploy --only hosting",
+    "dev": "node scripts/server.mjs",
+    "start": "node scripts/server.mjs",
+    "test": "node --test tests/server.test.mjs",
+    "test:browser": "node --test --test-concurrency=1 tests/letter.browser.test.mjs",
+    "build": "npm run build:hosting"
+  },
+  "devDependencies": {
+    "@fontsource/be-vietnam-pro": "^5.3.0",
+    "@fontsource/charm": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
+    "@tailwindcss/cli": "4.3.0",
+    "canvas-confetti": "^1.9.4",
+    "lucide": "^1.61.0",
+    "playwright": "1.62.1",
+    "qrcode-generator": "^2.0.4",
+    "tailwindcss": "4.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ductam20052019-cpu/wedthietkethu.git"
+  }
+}

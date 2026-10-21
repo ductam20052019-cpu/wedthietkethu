@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#fbf6f0">
+  <title>Tâm gửi — Một lá thư, vạn điều thương</title>
+  <meta name="description" content="Tự thiết kế thư chúc mừng với phong bì, nhạc và những hiệu ứng dịu dàng. Gửi một chút yêu thương theo cách của bạn.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles/tailwind.css">
+  <link rel="stylesheet" href="styles/letter.css">
+  <script defer src="scripts/vendor-confetti.js"></script>
+  <script defer src="scripts/vendor-lucide.js"></script>
+  <script defer src="scripts/vendor-qr.js"></script>
+  <script defer src="scripts/letter-config.js"></script>
+  <script defer src="scripts/letter-app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Đến nội dung chính</a>
+  <header id="header" class="site-header">
+    <a class="brand" href="#home" aria-label="Tâm gửi — Trang chủ"><span class="brand-symbol">♡</span><span>Tâm gửi<span class="brand-dot">.</span><small>LETTERS WITH LOVE</small></span></a>
+    <nav aria-label="Điều hướng chính"><a href="#templates">Bộ sưu tập</a><a href="#how">Cách gửi yêu thương</a><a href="#pricing">Gói dịch vụ</a></nav>
+    <button class="btn small" data-create>Tạo thư của bạn <i data-lucide="arrow-up-right"></i></button>
+  </header>
+  <main id="main">
+    <div id="home-view">
+      <section class="hero wrap" id="home">
+        <div class="hero-copy">
+          <div class="eyebrow"><span></span> NHỮNG ĐIỀU TỪ TRÁI TIM</div>
+          <h1>Có những lời,<br>hãy để <em>lá thư</em><br>nói thay bạn.</h1>
+          <p>Một lời chúc, một kỷ niệm, một chút thương.<br>Biến những điều giản dị thành món quà đặc biệt<br class="desktop-only"> với lá thư điện tử mang dấu ấn của riêng bạn.</p>
+          <div class="hero-actions flex flex-wrap gap-3"><button class="btn" data-create>Tạo thư ngay <i data-lucide="arrow-right"></i></button><a class="btn secondary" href="#templates"><i data-lucide="play" size="16"></i> Xem thư mẫu</a></div>
+          <div class="hero-note"><span class="tiny-hearts">♡ ♡ ♡</span> Không cần biết code. Chỉ cần có điều muốn gửi.</div>
+        </div>
+        <div class="hero-art" aria-label="Phong bì hồng và lá thư viết tay">
+          <span class="art-star star-one">✧</span><span class="art-star star-two">✧</span><span class="art-label">a little letter, a lot of love</span>
+          <div class="hero-letter"><span class="letter-flower">✿</span><small>DÀNH RIÊNG CHO BẠN</small><h2>Gửi người<br>tớ thương,</h2><p>Giữa muôn vàn điều đẹp đẽ,<br>thật vui vì có bạn ở đây.</p><span class="hand-sign">Thương mến, Tâm ♡</span></div>
+          <div class="hero-envelope"><div class="envelope-fold"></div><div class="wax">♡</div><span class="envelope-caption">sealed with love</span></div>
+          <span class="floating-note"><i data-lucide="music-2"></i> Một giai điệu. Một cảm xúc.</span><span class="art-petal petal-one"></span><span class="art-petal petal-two"></span>
+        </div>
+      </section>
+      <div class="promise-strip"><span><i data-lucide="pen-line"></i> Tự tay viết yêu thương</span><span><i data-lucide="sparkles"></i> Hiệu ứng đầy cảm xúc</span><span><i data-lucide="music-2"></i> Giai điệu dành riêng</span><span><i data-lucide="send"></i> Gửi ngay bằng một đường link</span></div>
+      <section id="templates" class="wrap collection">
+        <div class="section-heading"><div><div class="eyebrow">THE LETTER COLLECTION</div><h2>Mỗi dịp đặc biệt, <em>một lá thư.</em></h2><p>Chọn một cảm hứng. Viết tiếp câu chuyện của bạn.</p></div><span class="collection-count">04 bộ sưu tập <i data-lucide="arrow-down-right"></i></span></div>
+        <div class="filter-row" role="group" aria-label="Lọc bộ sưu tập"><button class="filter active" data-filter="all" aria-pressed="true">Tất cả mẫu thư</button><button class="filter" data-filter="birthday" aria-pressed="false">Sinh nhật</button><button class="filter" data-filter="love" aria-pressed="false">Tình yêu & Kỷ niệm</button><button class="filter" data-filter="flowers" aria-pressed="false">Gửi người phụ nữ tôi yêu</button><button class="filter" data-filter="christmas" aria-pressed="false">Mùa lễ hội</button></div>
+        <div id="template-grid" class="template-grid"></div>
+      </section>
+      <section id="how" class="how-section"><div class="wrap"><div class="eyebrow">TỪ BẠN, ĐẾN MỘT NGƯỜI ĐẶC BIỆT</div><h2>Yêu thương chỉ cách <em>ba bước.</em></h2><div class="steps"><article><span>01</span><h3>Chọn chút cảm hứng</h3><p>Tìm mẫu thư phù hợp với dịp đặc biệt của bạn.</p></article><article><span>02</span><h3>Viết bằng trái tim</h3><p>Thêm lời chúc, sắc màu và một giai điệu dịu dàng.</p></article><article><span>03</span><h3>Gửi một bất ngờ</h3><p>Chia sẻ link hoặc mã QR. Để khoảnh khắc tự lên tiếng.</p></article></div></div></section>
+      <section id="pricing" class="wrap pricing"><div class="section-heading"><div><div class="eyebrow">MỘT MÓN QUÀ, THEO CÁCH CỦA BẠN</div><h2>Chọn cách <em>gửi thương.</em></h2></div><p>Từ lời chúc nhỏ đến những ý tưởng thật riêng.</p></div><div class="price-grid"><article class="price-card"><span class="eyebrow">DÀNH CHO MỌI NGƯỜI</span><h3>Tự tạo cơ bản</h3><div class="price">Miễn phí <small>/ mỗi lá thư</small></div><p>Tự tay tạo nên một bất ngờ nho nhỏ.</p><ul><li>Đầy đủ mẫu thư, bảng màu và font chữ</li><li>Hiệu ứng chuyển động & giai điệu music box</li><li>Xuất link và mã QR ngay khi hoàn tất</li></ul><button class="btn secondary" data-create>Bắt đầu viết thư <i data-lucide="arrow-right"></i></button></article><article class="price-card vip"><span class="price-badge">DẤU ẤN RIÊNG</span><span class="eyebrow">CHO MỘT DỊP THẬT ĐẶC BIỆT</span><h3>Thiết kế riêng · VIP</h3><div class="price">Theo yêu cầu</div><p>Cùng lên ý tưởng cho câu chuyện của riêng bạn.</p><ul><li>Tùy chỉnh toàn diện theo câu chuyện & màu sắc</li><li>Ảnh kỷ niệm và âm nhạc theo yêu cầu</li><li>Trao đổi thiết kế hiệu ứng 3D độc quyền</li></ul><button class="btn" data-order>Trao đổi ý tưởng <i data-lucide="arrow-up-right"></i></button></article></div></section>
+      <footer class="wrap footer"><a class="brand" href="#home">♡ Tâm gửi.</a><span>Những điều nhỏ bé. Những yêu thương thật lớn.</span><small>Made with a little love ♡</small></footer>
+    </div>
+    <section id="studio-view" hidden class="wrap studio">
+      <div class="studio-heading"><div><button class="text-btn" id="back-home"><i data-lucide="arrow-left"></i> Bộ sưu tập</button><h1>Góc viết <em>yêu thương.</em></h1><p>Mỗi chi tiết nhỏ đều mang một chút của bạn.</p></div><span id="save-status" role="status">Bản nháp được lưu trên thiết bị</span></div>
+      <div class="mobile-tabs" role="tablist" aria-label="Studio"><button role="tab" id="edit-tab" aria-selected="true" aria-controls="editor" data-tab="edit">01 · Viết & thiết kế</button><button role="tab" id="preview-tab" aria-selected="false" aria-controls="preview-panel" data-tab="preview">02 · Xem trước</button></div>
+      <div class="studio-grid" data-mobile="edit">
+        <form id="editor" class="editor-panel">
+          <div class="form-section"><h2><span>01</span> Sắc màu & phong cách</h2><label for="occasion">Dịp gửi thư</label><select id="occasion" name="occasion"><option value="love">Tình yêu / Kỷ niệm</option><option value="birthday">Sinh nhật</option><option value="flowers">20/10 · 8/3 · Ngày của Mẹ</option><option value="christmas">Giáng sinh & Năm mới</option></select><label>Bảng màu</label><div id="theme-options" class="theme-options" role="group" aria-label="Bảng màu"></div><div class="form-pair"><div><label for="envelope">Kiểu phong bì</label><select id="envelope" name="envelope"><option value="classic">Cổ điển</option><option value="lined">Viền thư tay</option><option value="botanical">Dấu hoa dịu dàng</option></select></div><div><label for="seal">Màu con dấu sáp</label><input type="color" id="seal" name="seal" value="#b36a70"></div></div></div>
+          <div class="form-section"><h2><span>02</span> Những lời muốn nói</h2><label for="title">Tiêu đề ngoài phong bì</label><input id="title" name="title" maxlength="100" required><label for="recipient">Tên người nhận</label><input id="recipient" name="recipient" maxlength="60" required><label for="message">Lời chúc của bạn <span id="char-count"></span></label><textarea id="message" name="message" rows="7" maxlength="2400" required></textarea><label for="sender">Chữ ký người gửi</label><input id="sender" name="sender" maxlength="60" required><label for="font">Nét chữ</label><select id="font" name="font"><option value="hand">Viết tay mềm mại</option><option value="serif">Serif cổ điển</option><option value="modern">Hiện đại tinh giản</option></select></div>
+          <div class="form-section"><h2><span>03</span> Một chút nhiệm màu</h2><div class="form-pair"><div><label for="effect">Hiệu ứng</label><select id="effect" name="effect"><option value="hearts">Mưa tim & cánh hồng</option><option value="petals">Hoa anh đào & lấp lánh</option><option value="snow">Tuyết rơi & sao đêm</option><option value="confetti">Confetti & bóng bay</option><option value="fireflies">Đom đóm lấp lánh</option></select></div><div><label for="speed">Nhịp hiện chữ</label><select id="speed" name="speed"><option value="slow">Chậm cảm xúc</option><option value="medium">Vừa phải</option><option value="instant">Hiện ngay</option></select></div></div><label class="toggle-label" for="music"><span>Giai điệu music box<small>Nhẹ nhàng, được tạo bằng Web Audio</small></span><input type="checkbox" id="music" name="music" role="switch"></label><label for="photo">Link ảnh kỷ niệm (không bắt buộc)</label><input type="url" id="photo" name="photo" maxlength="500" aria-describedby="media-hint"><label for="audio">Link nhạc MP3 (không bắt buộc)</label><input type="url" id="audio" name="audio" maxlength="500"><p id="media-hint" class="field-hint">Dùng link HTTPS trực tiếp đến ảnh hoặc tệp âm thanh. Để trống link nhạc để dùng music box.</p></div>
+        </form>
+        <aside id="preview-panel" class="preview-panel"><div class="preview-toolbar"><span><span class="live-dot"></span> XEM TRƯỚC TRỰC TIẾP</span><span><i data-lucide="monitor"></i><i data-lucide="smartphone"></i></span></div><div id="preview-stage" class="experience theme-rose"></div><div class="preview-bottom"><button class="btn secondary" id="test-open"><i data-lucide="play"></i> Thử nghiệm mở thư</button><p>Chạm vào con dấu để mở một điều bất ngờ.</p></div><button class="btn share-button" id="generate"><i data-lucide="send"></i> Hoàn tất & Lấy link gửi tặng</button><p class="privacy-note"><i data-lucide="lock-keyhole"></i> Nội dung nằm trong link, không lưu lên máy chủ.<br>Ai có link đều có thể đọc lá thư.</p></aside>
+      </div>
+    </section>
+    <section id="receiver-view" hidden><div id="receiver-stage" class="experience"></div><div class="receiver-controls"><button class="glass-btn" id="replay"><i data-lucide="rotate-ccw"></i> Xem lại từ đầu</button><button class="glass-btn" id="sound-toggle" aria-pressed="false"><i data-lucide="volume-x"></i> Bật nhạc</button><button class="glass-btn" id="create-similar">Tạo thư tại Tâm gửi <i data-lucide="arrow-up-right"></i></button></div></section>
+  </main>
+  <dialog id="share-dialog" class="modal"><button class="close-modal" data-close aria-label="Đóng"><i data-lucide="x"></i></button><div class="modal-icon">♡</div><div class="eyebrow">YÊU THƯƠNG ĐÃ SẴN SÀNG</div><h2>Một lá thư, <em>một niềm vui.</em></h2><p>Gửi đường link này đến người bạn thương nhé.</p><div id="qr-code"></div><p id="qr-status" class="field-hint" role="status"></p><label for="share-url">Link dành riêng cho người nhận</label><div class="copy-row"><input id="share-url" readonly><button class="btn" id="copy-link" aria-label="Sao chép đường dẫn"><i data-lucide="copy"></i> Copy</button></div><a id="open-link" class="btn secondary" target="_blank" rel="noopener">Mở thử link người nhận <i data-lucide="external-link"></i></a><p id="hosting-hint" class="field-hint"></p><button class="text-btn" data-order>Muốn một thiết kế riêng? Xem dịch vụ VIP →</button></dialog>
+  <dialog id="order-dialog" class="modal"><button class="close-modal" data-close aria-label="Đóng"><i data-lucide="x"></i></button><div class="modal-icon">✧</div><h2>Một câu chuyện <em>thật riêng.</em></h2><p>Gói VIP được báo giá theo ý tưởng, số ảnh, âm nhạc và hiệu ứng mong muốn.</p><label for="order-note">Nội dung yêu cầu thiết kế</label><textarea id="order-note" rows="5">Mình muốn đặt một lá thư thiết kế riêng.
+Dịp gửi:
+Ngày cần hoàn thành:
+Ý tưởng và hiệu ứng mong muốn:
+Ngân sách dự kiến:</textarea><button class="btn" id="copy-order">Sao chép yêu cầu</button><a id="contact-shop" class="btn secondary" target="_blank" rel="noopener" hidden>Liên hệ shop để đặt thiết kế <i data-lucide="message-circle"></i></a><p id="contact-status" class="field-hint"></p></dialog>
+  <dialog id="error-dialog" class="modal"><h2>Chưa mở được lá thư</h2><p>Đường link bị thiếu hoặc dữ liệu không hợp lệ. Bạn hãy nhờ người gửi sao chép lại toàn bộ link nhé.</p><button class="btn" id="error-home">Về trang chủ</button></dialog>
+  <div id="toast" role="status" class="toast" hidden></div>
+</body>
+</html>
