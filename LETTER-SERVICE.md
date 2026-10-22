@@ -1,4 +1,4 @@
-# Tâm gửi — Dịch vụ thư điện tử
+# Yêu thương gửi bạn — Dịch vụ thư điện tử
 
 > Tài liệu này mô tả phiên bản thư tĩnh cũ. Hệ thống đơn hàng và quản trị mới dùng máy chủ Node; xem [ORDER-SYSTEM.md](ORDER-SYSTEM.md). Firebase Hosting tĩnh không phục vụ API mới.
 

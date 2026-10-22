@@ -17,9 +17,6 @@
     return result;
   }
 
-  /* ═══════════ PRICE MAP (VNĐ) ═══════════ */
-  const PRICE_MAP = { free: 0, vip: 150000 };
-
   /* ═══════════ ELEMENTS ═══════════ */
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -212,14 +209,12 @@
     const total = entries.length;
     const pending = entries.filter(o => o.status === 'pending').length;
     const paid = entries.filter(o => o.status === 'paid').length;
-    const revenue = entries
-      .filter(o => o.status === 'paid')
-      .reduce((sum, o) => sum + (PRICE_MAP[o.package] || 0), 0);
+    const revoked = entries.filter(o => o.status === 'revoked').length;
 
     animateCounter($('#stat-total .stat-value'), total);
     animateCounter($('#stat-pending .stat-value'), pending);
     animateCounter($('#stat-paid .stat-value'), paid);
-    $('#stat-revenue .stat-value').textContent = formatMoney(revenue);
+    animateCounter($('#stat-revoked .stat-value'), revoked);
   }
 
   function animateCounter(el, target) {
@@ -398,10 +393,6 @@
     const d = new Date(ts);
     const pad = n => String(n).padStart(2, '0');
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
-
-  function formatMoney(n) {
-    return n.toLocaleString('vi-VN') + '₫';
   }
 
   function shortPath(url) {

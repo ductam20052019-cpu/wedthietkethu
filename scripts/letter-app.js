@@ -6,7 +6,7 @@
   const themes = { rose: ['Hồng lãng mạn', '#dba9a1'], midnight: ['Đêm đầy sao', '#38364e'], vintage: ['Cổ điển Vintage', '#c3ab88'], minimal: ['Tối giản', '#a5b09c'] };
   const templates = {
     birthday: { name: 'Một tuổi mới rực rỡ', caption: 'Pháo hoa giấy · Bóng bay · Niềm vui', tag: 'MAKE A WISH', motif: '✧', theme: 'vintage', effect: 'confetti', title: 'Một điều ước dành riêng cho bạn', recipient: 'Bạn thân mến', message: 'Chúc mừng sinh nhật bạn! 🎂\n\nMong tuổi mới mang đến cho bạn thật nhiều niềm vui, những cuộc gặp gỡ ấm áp và đủ can đảm để theo đuổi điều mình yêu.\n\nHãy luôn rực rỡ theo cách riêng của bạn nhé. Hôm nay và cả những ngày sau nữa!', sender: 'Một người luôn quý bạn' },
-    love: { name: 'Gửi người tớ thương', caption: 'Tim bay · Cánh hồng · Ngọt ngào', tag: 'MOST LOVED', motif: '♡', theme: 'rose', effect: 'hearts', title: 'Gửi người đặc biệt nhất…', recipient: 'Người tớ thương', message: 'Có những ngày thật bình thường, nhưng chỉ cần có bạn, mọi thứ bỗng trở nên đặc biệt.\n\nCảm ơn bạn vì đã xuất hiện, vì những điều nhỏ bé mà ấm áp, vì đã cùng tớ viết nên những kỷ niệm thật đẹp.\n\nMong chúng mình sẽ còn cùng nhau đi qua thật nhiều mùa thương nhớ. Và mong bạn luôn biết: bạn được yêu thương, rất nhiều.', sender: 'Tâm' },
+    love: { name: 'Gửi người tớ thương', caption: 'Tim bay · Cánh hồng · Ngọt ngào', tag: 'MOST LOVED', motif: '♡', theme: 'rose', effect: 'hearts', title: 'Gửi người đặc biệt nhất…', recipient: 'Người tớ thương', message: 'Có những ngày thật bình thường, nhưng chỉ cần có bạn, mọi thứ bỗng trở nên đặc biệt.\n\nCảm ơn bạn vì đã xuất hiện, vì những điều nhỏ bé mà ấm áp, vì đã cùng tớ viết nên những kỷ niệm thật đẹp.\n\nMong chúng mình sẽ còn cùng nhau đi qua thật nhiều mùa thương nhớ. Và mong bạn luôn biết: bạn được yêu thương, rất nhiều.', sender: 'Một người thương bạn' },
     flowers: { name: 'Dịu dàng như một đóa hoa', caption: 'Hoa anh đào · Ánh sáng lấp lánh', tag: '20/10 · 8/3 · NGÀY CỦA MẸ', motif: '❀', theme: 'minimal', effect: 'petals', title: 'Một đóa hoa, ngàn lời thương', recipient: 'Người phụ nữ tuyệt vời', message: 'Gửi bạn một chút dịu dàng trong ngày đặc biệt này.\n\nCảm ơn bạn vì những yêu thương, sự kiên nhẫn và ánh sáng mà bạn mang đến cho cuộc sống. Mong bạn luôn được nâng niu, luôn có thời gian cho chính mình và luôn mỉm cười với những điều giản dị.\n\nChúc bạn một ngày thật đẹp, như chính bạn vậy!', sender: 'Một người thương bạn' },
     christmas: { name: 'Một mùa an lành', caption: 'Tuyết rơi · Trời sao · Ấm áp', tag: 'SEASON’S GREETINGS', motif: '✴', theme: 'midnight', effect: 'snow', title: 'Gửi bạn một mùa đông ấm áp', recipient: 'Bạn yêu quý', message: 'Khi những ánh đèn nhỏ sáng lên, tớ muốn gửi đến bạn một lời chúc thật ấm áp.\n\nChúc bạn một mùa Giáng sinh an lành, một năm mới đầy hy vọng và thật nhiều khoảnh khắc ở bên những người mình thương.\n\nMong những điều tốt đẹp đang trên đường tìm đến bạn. Merry Christmas & Happy New Year! ✨', sender: 'Người bạn phương xa' }
   };
@@ -71,14 +71,14 @@
   }
   function studio(template, open = false) {
     if (template) data = { ...data, ...pickTemplate(template), occasion: template };
-    history.replaceState(null, '', location.pathname + '#studio');
+    history.replaceState(null, '', '/#studio');
     changeView('studio'); populateForm(); setTab(open ? 'preview' : 'edit');
     preview = new Experience($('#preview-stage'), data); if (open) preview.open();
     saveDraft();
   }
   function setTab(tab) { $('.studio-grid').dataset.mobile = tab; $$('[data-tab]').forEach(button => { button.setAttribute('aria-selected', String(button.dataset.tab === tab)); button.tabIndex = button.dataset.tab === tab ? 0 : -1; }); }
   function refreshPreview() { preview?.update(data); $('#char-count').textContent = `${data.message.length}/2400`; saveDraft(); }
-  function home() { history.replaceState(null, '', location.pathname + '#home'); changeView('home'); }
+  function home() { history.replaceState(null, '', '/#home'); changeView('home'); }
   async function copy(text, success, field) {
     try { await navigator.clipboard.writeText(text); toast(success); } catch {
       const input = field || document.createElement('textarea'); if (!field) { input.value = text; const parent = $('dialog[open]') || document.body; parent.append(input); }
@@ -274,14 +274,15 @@
   }
   function showShare(order) {
     currentOrder = order;
+    $('#share-dialog h2').innerHTML = order.status === 'paid' ? 'Bức thư đã <em>mở khóa.</em>' : order.status === 'revoked' ? 'Bức thư đã <em>thu hồi.</em>' : 'Chờ shop <em>xác nhận.</em>';
     $('#order-code').textContent = `Mã đơn hàng: ${order.id}`;
     $('#order-state').textContent = order.status === 'paid' ? 'Đã mở khóa Premium. Bạn có thể gửi link và mã QR.' : order.status === 'revoked' ? 'Đơn đã bị thu hồi. Vui lòng liên hệ shop.' : 'Đang chờ thanh toán. Trang sẽ tự mở khóa khi shop xác nhận.';
     const url = new URL(order.letterUrl, location.origin);
     $('#share-url').value = url.href; $('#open-link').href = url.href;
     $('#qr-code').replaceChildren(); $('#qr-status').textContent = '';
-    try { const qr = window.qrcode(0, 'L'); qr.addData(url.href, 'Byte'); qr.make(); $('#qr-code').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true }); $('#qr-status').textContent = 'Quét mã QR để mở thư sau khi thanh toán.'; }
+    try { const qr = window.qrcode(0, 'L'); qr.addData(url.href, 'Byte'); qr.make(); $('#qr-code').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true }); $('#qr-status').textContent = order.status === 'paid' ? 'Quét mã QR để mở thư.' : 'Quét mã QR để mở thư sau khi thanh toán.'; }
     catch { $('#qr-status').textContent = 'Không tạo được mã QR; bạn vẫn có thể sao chép link.'; }
-    $('#hosting-hint').textContent = 'Mã đơn là khóa tra cứu. Chỉ gửi cho người bạn tin tưởng.';
+    $('#hosting-hint').textContent = 'Giữ mã đơn cùng số điện thoại hoặc PIN để tra cứu và chỉnh sửa thư.';
     if (!$('#share-dialog').open) $('#share-dialog').showModal();
     subscribeOrder(order.id);
   }
@@ -291,6 +292,8 @@
     orderStream.onmessage = event => {
       const update = JSON.parse(event.data); const prior = currentOrder?.status;
       currentOrder = { ...update, ownerToken: currentOrder?.ownerToken }; $('#order-state').textContent = update.status === 'paid' ? 'Đã mở khóa Premium! Bây giờ bạn có thể gửi thư.' : update.status === 'revoked' ? 'Đơn đã bị thu hồi.' : 'Đang chờ thanh toán.';
+      if ($('#share-dialog').open) $('#share-dialog h2').innerHTML = update.status === 'paid' ? 'Bức thư đã <em>mở khóa.</em>' : update.status === 'revoked' ? 'Bức thư đã <em>thu hồi.</em>' : 'Chờ shop <em>xác nhận.</em>';
+      if ($('#share-dialog').open && $('#qr-code svg')) $('#qr-status').textContent = update.status === 'paid' ? 'Quét mã QR để mở thư.' : 'Quét mã QR để mở thư sau khi thanh toán.';
       if (update.status === 'paid' && prior !== 'paid') toast('Thư đã được mở khóa Premium!');
       if (view === 'receiver') showOrderReceiver(update);
     };
@@ -299,7 +302,7 @@
     const stage = $('#receiver-stage');
     music.stop();
     receiver?.destroy(); receiver = null;
-    $('#receiver-view .receiver-controls').hidden = order.status !== 'paid';
+    $('#receiver-view .receiver-controls').hidden = order.status !== 'paid' || !order.letterData || order.linkRevoked;
     if (order.status === 'paid' && order.letterData && !order.linkRevoked) { data = validate(order.letterData); receiver = new Experience(stage, data); }
     else {
       stage.replaceChildren(); const notice = document.createElement('div'); notice.className = 'order-waiting';
@@ -401,7 +404,7 @@
     icons(); const params = new URLSearchParams(location.search);
     if (location.pathname.startsWith('/thu/')) { changeView('receiver'); try { const slug = location.pathname.split('/').pop(); const order = await api(`/api/thu/${encodeURIComponent(slug)}`); currentOrder = order; showOrderReceiver(order); subscribeOrder(order.id); } catch { $('#error-dialog').showModal(); } }
     else if (params.has('order')) { changeView('receiver'); try { const order = await api(`/api/orders/${encodeURIComponent(params.get('order'))}`); currentOrder = order; showOrderReceiver(order); subscribeOrder(order.id); } catch { $('#error-dialog').showModal(); } }
-    else if (params.has('letter')) { changeView('receiver'); try { data = await decodeLetter(params.get('letter')); receiver = new Experience($('#receiver-stage'), data); document.title = `Một lá thư từ ${data.sender} — Tâm gửi`; } catch { $('#error-dialog').showModal(); } }
+    else if (params.has('letter')) { changeView('receiver'); try { data = await decodeLetter(params.get('letter')); receiver = new Experience($('#receiver-stage'), data); document.title = `Một lá thư từ ${data.sender} — Yêu thương gửi bạn`; } catch { $('#error-dialog').showModal(); } }
     else {
       loadDraft();
       const id = localStorage.getItem('ytgb-current-order'); const ownerToken = id && localStorage.getItem(`ytgb-owner-${id}`);

@@ -33,3 +33,5 @@
 .lookup-result .btn { justify-self:start; }
 .order-waiting input { display:block; margin:.7rem auto; padding:.7rem; border-radius:8px; border:1px solid #caa; }
 @media(max-width:760px) { .mobile-lookup { display:inline-flex; } .site-header .brand { font-size:20px; } .site-header .btn.small { padding:8px; } .resume-banner { font-size:.8rem; } }
+.site-header .brand { font-size: clamp(20px, 2.2vw, 30px); }
+@media(max-width:760px) { .site-header { flex-wrap:wrap; justify-content:center; } .site-header .brand { width:100%; justify-content:center; font-size:24px; } .site-header .mobile-lookup { margin-right:auto; } }

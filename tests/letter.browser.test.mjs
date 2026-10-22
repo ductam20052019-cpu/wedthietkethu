@@ -27,6 +27,8 @@ test('desktop order, admin confirmation and realtime recipient unlock', { timeou
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(base);
+  assert.match(await page.title(), /Yêu thương gửi bạn/);
+  assert.match(await page.locator('#header .brand').textContent(), /Yêu thương gửi bạn/);
   await page.locator('[data-create]').first().click();
   await page.locator('#message').fill('Một lá thư rất đặc biệt ❤️');
   const png = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 32; const ctx = canvas.getContext('2d'); ctx.fillStyle = '#b36a70'; ctx.fillRect(0, 0, 64, 32); return canvas.toDataURL('image/png').split(',')[1]; });
@@ -62,6 +64,9 @@ test('desktop order, admin confirmation and realtime recipient unlock', { timeou
   await recipient.locator('.skip-typing').click();
   assert.equal(await recipient.locator('.letter-content').textContent().then(t => t.trim()), 'Một lá thư rất đặc biệt ❤️');
   assert.equal(await recipient.locator('.memory-photo').count(), 1);
+  await recipient.locator('#create-similar').click();
+  assert.equal(new URL(recipient.url()).pathname, '/');
+  assert.equal(new URL(recipient.url()).hash, '#studio');
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -70,6 +75,7 @@ test('mobile lookup needs verification and shows customer controls', { timeout: 
   const context = await browser.newContext(devices['iPhone 13']);
   const page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(base);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.locator('[data-open-lookup]').click();
   await page.locator('#lookup-phone').fill('0901234567');
   await page.locator('#lookup-pin').fill('1234');

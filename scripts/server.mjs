@@ -104,5 +104,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.error(error.message);
     process.exitCode = 1;
   });
-  loadOrders().then(() => server.listen(port, '0.0.0.0', () => console.log(`Tâm gửi: http://localhost:${server.address().port}`))).catch(error => { console.error(error); process.exitCode = 1; });
+  loadOrders().then(() => server.listen(port, '0.0.0.0', () => console.log(`Yêu thương gửi bạn: http://localhost:${server.address().port}`))).catch(error => { console.error(error); process.exitCode = 1; });
 }
