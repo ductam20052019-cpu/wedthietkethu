@@ -678,6 +678,7 @@ body {
   max-height: 100vh;
   width: 100%;
   height: 100%;
+  color: var(--text-primary);
 }
 
 .modal-overlay::backdrop {
@@ -697,6 +698,7 @@ body {
 
 .modal-panel {
   background: var(--bg-surface);
+  color: var(--text-primary);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
