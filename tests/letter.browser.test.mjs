@@ -90,6 +90,47 @@ test('mobile lookup needs verification and shows customer controls', { timeout: 
   await context.close();
 });
 
+test('gift order shows estimate, saves delivery details and lets admin print QR', { timeout: 60000 }, async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  const page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto(base);
+  await page.locator('[data-create][data-package="gift"]').click();
+  await page.locator('#gift-step').waitFor();
+  assert.match(await page.locator('#gift-quote').textContent(), /178\.000đ/);
+  await page.locator('#ship-name').fill('Nguyễn An');
+  await page.locator('#ship-phone').fill('0912345678');
+  await page.locator('#ship-address').fill('12 Đường Hoa, Phường 1, Quận 3, TP Hồ Chí Minh');
+  await page.locator('#ship-date').fill(new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10));
+  await page.locator('#ship-time').fill('Sau 17 giờ');
+  await page.locator('#ship-card').fill('Chúc mừng sinh nhật');
+  await page.locator('#ship-buyer').fill('0987654321');
+  await page.locator('#generate').click();
+  await page.locator('#customer-phone').fill('0987654321');
+  await page.locator('#customer-pin').fill('4321');
+  await page.locator('#identity-form button[type=submit]').click();
+  await page.locator('#share-dialog[open]').waitFor();
+  assert.match(await page.locator('#payment-summary').textContent(), /178\.000đ/);
+  const id = (await page.locator('#order-code').textContent()).match(/YTGB[A-F0-9]{32}/)[0];
+  const admin = await context.newPage(); admin.on('pageerror', error => errors.push(error.message));
+  await admin.goto(base + '/admin');
+  await admin.locator('#login-email').fill('owner@example.com');
+  await admin.locator('#login-password').fill('browser-test-secret');
+  await admin.locator('#login-btn').click();
+  const row = admin.locator(`[data-order-id="${id}"]`); await row.waitFor();
+  assert.match(await row.textContent(), /CẦN SHIP QUÀ/);
+  await row.locator('[data-action="preview"]').click();
+  assert.match(await admin.locator('#preview-modal-body').textContent(), /12 Đường Hoa/);
+  await admin.locator('#preview-modal [data-close]').click();
+  const download = admin.waitForEvent('download'); await row.locator('[data-action="download-qr"]').click();
+  assert.match((await download).suggestedFilename(), /qr-thiep\.svg$/);
+  await row.locator('[data-action="pay"]').click(); await admin.locator('#confirm-ok').click();
+  await row.locator('[data-action="ship-sent"]').click(); await admin.locator('#confirm-ok').click();
+  await row.locator('[data-action="ship-delivered"]').click(); await admin.locator('#confirm-ok').click();
+  assert.match(await row.textContent(), /Đã giao thành công/);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('shop owner can filter, reset edits and revoke a live letter on mobile', { timeout: 60000 }, async () => {
   const context = await browser.newContext(devices['iPhone 13']);
   const admin = await context.newPage();
@@ -99,7 +140,7 @@ test('shop owner can filter, reset edits and revoke a live letter on mobile', { 
   await admin.locator('#login-btn').click();
   await admin.locator('.filter-tab[data-filter="paid"]').click();
   await admin.locator('#search-input').fill('0901234567');
-  const row = admin.locator('#orders-body tr').first(); await row.waitFor();
+  const row = admin.locator('#orders-body tr').filter({ hasText: '0901234567' }).first(); await row.waitFor();
   const link = await row.locator('.link-cell a').getAttribute('href');
   const recipient = await context.newPage(); await recipient.goto(base + link); await recipient.locator('.seal-button').waitFor();
   await row.locator('[data-action="reset-edits"]').click();

@@ -13,6 +13,40 @@
   const defaults = { v: 1, occasion: 'love', ...pickTemplate('love'), envelope: 'classic', seal: '#b36a70', font: 'hand', speed: 'medium', music: true, musicTrack: 'romantic', photo: '', photos: [], audio: '' };
   let data = { ...defaults }, view = 'home', preview, receiver, toastTimer, saveTimer, currentOrder, orderStream;
   let pendingPhotos = [], pendingAudio = null;
+  let selectedPackage = 'online', giftSetId = 'flowers';
+  let catalog = { letterPrice: 49000, estimatedShipping: 30000, giftSets: [
+    { id: 'flowers', name: 'Set Hoa dịu dàng', price: 99000, image: '/assets/gift-flowers.svg' },
+    { id: 'candle', name: 'Set Nến ấm áp', price: 129000, image: '/assets/gift-candle.svg' },
+    { id: 'teddy', name: 'Set Gấu bông yêu thương', price: 159000, image: '/assets/gift-teddy.svg' }
+  ] };
+  const money = value => value == null ? 'Shop báo giá' : new Intl.NumberFormat('vi-VN').format(value) + 'đ';
+  const shippingFields = { recipientName: '#ship-name', recipientPhone: '#ship-phone', address: '#ship-address', deliveryDate: '#ship-date', timeNote: '#ship-time', cardNote: '#ship-card', buyerPhone: '#ship-buyer' };
+  const shippingInfo = () => Object.fromEntries(Object.entries(shippingFields).map(([key, selector]) => [key, $(selector).value.trim()]));
+  function renderGiftOptions() {
+    const host = $('#gift-options'); host.replaceChildren();
+    for (const item of [...catalog.giftSets, { id: 'custom', name: 'Tư vấn mẫu quà riêng qua TikTok', price: null, image: '/assets/gift-flowers.svg' }]) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'gift-option'; button.setAttribute('role', 'radio'); button.setAttribute('aria-checked', String(giftSetId === item.id));
+      const img = document.createElement('img'); img.src = item.image; img.alt = '';
+      const content = document.createElement('span'); const title = document.createElement('strong'); title.textContent = item.name; const price = document.createElement('small'); price.textContent = item.price == null ? 'Shop báo giá riêng' : `+ ${money(item.price)} dự kiến`;
+      content.append(title, price); button.append(img, content); button.addEventListener('click', () => { giftSetId = item.id; renderGiftOptions(); renderGiftQuote(); }); host.append(button);
+    }
+  }
+  function renderGiftQuote() {
+    const gift = catalog.giftSets.find(item => item.id === giftSetId);
+    const total = gift ? catalog.letterPrice + gift.price + catalog.estimatedShipping : null;
+    $('#gift-quote').innerHTML = `<p><span>Thư điện tử</span><span>${money(catalog.letterPrice)}</span></p><p><span>Set quà</span><span>${money(gift?.price)}</span></p><p><span>Phí ship dự kiến</span><span>${money(catalog.estimatedShipping)}</span></p><p><strong>Tổng dự kiến</strong><strong>${money(total)}</strong></p><small>Giá mẫu để thử nghiệm. Shop xác nhận giá và phí ship trước khi chuyển khoản.</small>`;
+  }
+  function setPackage(value) {
+    selectedPackage = value === 'gift' ? 'gift' : 'online';
+    $('#studio-package').textContent = selectedPackage === 'gift' ? 'Đơn Thư + Quà · Thiết kế thư, chọn quà và nhập địa chỉ giao hàng.' : 'Đơn Thư Online · Thiết kế thư và lấy link gửi tặng.';
+    const now = new Date(); $('#ship-date').min = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    $('#gift-step').hidden = selectedPackage !== 'gift';
+    for (const key of ['recipientName', 'recipientPhone', 'address', 'deliveryDate', 'buyerPhone']) $(shippingFields[key]).required = selectedPackage === 'gift';
+    $('#generate').innerHTML = selectedPackage === 'gift' ? '<i data-lucide="gift"></i> Lưu đơn thư + quà & lấy link' : '<i data-lucide="send"></i> Lưu đơn & lấy link gửi tặng';
+    icons(); renderGiftQuote();
+  }
+  api('/api/catalog').then(value => { catalog = value; renderGiftOptions(); renderGiftQuote(); }).catch(() => {});
+  renderGiftOptions();
   async function api(path, options) { const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Không kết nối được máy chủ.'); return result; }
   const music = new MusicBox();
   function pickTemplate(key) { const { theme, effect, title, recipient, message, sender } = templates[key]; return { theme, effect, title, recipient, message, sender }; }
@@ -72,7 +106,7 @@
   function studio(template, open = false) {
     if (template) data = { ...data, ...pickTemplate(template), occasion: template };
     history.replaceState(null, '', '/#studio');
-    changeView('studio'); populateForm(); setTab(open ? 'preview' : 'edit');
+    changeView('studio'); populateForm(); setTab(open ? 'preview' : 'edit'); setPackage(currentOrder?.package || selectedPackage);
     preview = new Experience($('#preview-stage'), data); if (open) preview.open();
     saveDraft();
   }
@@ -262,6 +296,10 @@
 
   async function generate() {
     setTab('edit'); if (!$('#editor').reportValidity()) return;
+    if (selectedPackage === 'gift') {
+      for (const key of ['recipientName', 'recipientPhone', 'address', 'deliveryDate', 'buyerPhone']) if (!$(shippingFields[key]).reportValidity()) { $(shippingFields[key]).focus(); return; }
+      if (new Date(`${$('#ship-date').value}T23:59:59`).getTime() < Date.now()) { toast('Ngày nhận quà cần là hôm nay hoặc một ngày sắp tới.'); return; }
+    }
     if (['title', 'recipient', 'message', 'sender'].some(key => !data[key].trim())) { toast('Hãy điền đầy đủ tiêu đề, người nhận, lời chúc và chữ ký.'); return; }
     if (['photo', 'audio'].some(key => data[key] && !safeUrl(data[key]))) { toast('Link ảnh và nhạc cần bắt đầu bằng https://.'); return; }
     if (currentOrder?.ownerToken) {
@@ -276,6 +314,10 @@
     currentOrder = order;
     $('#share-dialog h2').innerHTML = order.status === 'paid' ? 'Bức thư đã <em>mở khóa.</em>' : order.status === 'revoked' ? 'Bức thư đã <em>thu hồi.</em>' : 'Chờ shop <em>xác nhận.</em>';
     $('#order-code').textContent = `Mã đơn hàng: ${order.id}`;
+    $('#payment-contact').hidden = order.status !== 'pending';
+    $('#payment-contact').nextElementSibling.hidden = order.status !== 'pending';
+    const quote = order.quote;
+    $('#payment-summary').innerHTML = quote ? `<p><span>${order.package === 'gift' ? 'Thư điện tử + quà giao tận nhà' : 'Thư điện tử online'}</span><strong>${money(quote.total)}</strong></p>${order.package === 'gift' ? `<p><span>Thư điện tử</span><span>${money(quote.letter)}</span></p><p><span>Set quà</span><span>${money(quote.gift)}</span></p><p><span>Phí ship dự kiến</span><span>${money(quote.shipping)}</span></p>` : ''}<small>Giá dự kiến; shop xác nhận trước khi chuyển khoản.</small>` : '<p>Liên hệ shop để xác nhận giá trước khi thanh toán.</p>';
     $('#order-state').textContent = order.status === 'paid' ? 'Đã mở khóa Premium. Bạn có thể gửi link và mã QR.' : order.status === 'revoked' ? 'Đơn đã bị thu hồi. Vui lòng liên hệ shop.' : 'Đang chờ thanh toán. Trang sẽ tự mở khóa khi shop xác nhận.';
     const url = new URL(order.letterUrl, location.origin);
     $('#share-url').value = url.href; $('#open-link').href = url.href;
@@ -292,6 +334,8 @@
     orderStream.onmessage = event => {
       const update = JSON.parse(event.data); const prior = currentOrder?.status;
       currentOrder = { ...update, ownerToken: currentOrder?.ownerToken }; $('#order-state').textContent = update.status === 'paid' ? 'Đã mở khóa Premium! Bây giờ bạn có thể gửi thư.' : update.status === 'revoked' ? 'Đơn đã bị thu hồi.' : 'Đang chờ thanh toán.';
+      $('#payment-contact').hidden = update.status !== 'pending';
+      $('#payment-contact').nextElementSibling.hidden = update.status !== 'pending';
       if ($('#share-dialog').open) $('#share-dialog h2').innerHTML = update.status === 'paid' ? 'Bức thư đã <em>mở khóa.</em>' : update.status === 'revoked' ? 'Bức thư đã <em>thu hồi.</em>' : 'Chờ shop <em>xác nhận.</em>';
       if ($('#share-dialog').open && $('#qr-code svg')) $('#qr-status').textContent = update.status === 'paid' ? 'Quét mã QR để mở thư.' : 'Quét mã QR để mở thư sau khi thanh toán.';
       if (update.status === 'paid' && prior !== 'paid') toast('Thư đã được mở khóa Premium!');
@@ -321,7 +365,7 @@
     event.preventDefault(); const form = event.currentTarget; if (!form.reportValidity()) return;
     const button = form.querySelector('button[type=submit]'); button.disabled = true;
     try {
-      let order = await api('/api/orders', { method: 'POST', body: JSON.stringify({ phone: $('#customer-phone').value.trim(), pin: $('#customer-pin').value.trim(), letterData: validate(data) }) });
+      let order = await api('/api/orders', { method: 'POST', body: JSON.stringify({ phone: $('#customer-phone').value.trim(), pin: $('#customer-pin').value.trim(), package: selectedPackage, giftSetId: selectedPackage === 'gift' ? giftSetId : undefined, shipping: selectedPackage === 'gift' ? shippingInfo() : undefined, letterData: validate(data) }) });
       localStorage.setItem(`ytgb-owner-${order.id}`, order.ownerToken); localStorage.setItem('ytgb-current-order', order.id);
       currentOrder = order; await uploadMedia(order);
       order = { ...await api(`/api/orders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ownerToken: order.ownerToken, letterData: validate(data) }) }), ownerToken: order.ownerToken };
@@ -334,7 +378,7 @@
   $('#resume-order').addEventListener('click', async () => {
     const id = localStorage.getItem('ytgb-current-order'), token = id && localStorage.getItem(`ytgb-owner-${id}`);
     if (!id || !token) return;
-    try { const order = await api(`/api/orders/${id}/owner`, { headers: { 'X-Owner-Token': token } }); currentOrder = { ...order, ownerToken: token }; data = validate(order.letterData); $('#resume-banner').hidden = true; studio(); }
+    try { const order = await api(`/api/orders/${id}/owner`, { headers: { 'X-Owner-Token': token } }); currentOrder = { ...order, ownerToken: token }; data = validate(order.letterData); if (order.shipping) for (const [key, selector] of Object.entries(shippingFields)) $(selector).value = order.shipping[key] || ''; giftSetId = order.giftSetId || 'flowers'; renderGiftOptions(); $('#resume-banner').hidden = true; studio(); }
     catch (error) { toast(error.message); }
   });
   function customerPanel(order) {
@@ -344,7 +388,7 @@
     const short = document.createElement('code'); short.textContent = order.letterUrl;
     const copyButton = document.createElement('button'); copyButton.type = 'button'; copyButton.className = 'text-btn'; copyButton.textContent = 'Sao chép link ngắn'; copyButton.addEventListener('click', () => copy(new URL(order.letterUrl, location.origin).href, 'Đã sao chép link thư.'));
     const qrButton = document.createElement('button'); qrButton.type = 'button'; qrButton.className = 'text-btn'; qrButton.textContent = 'Xem và tải mã QR'; qrButton.addEventListener('click', () => { $('#lookup-dialog').close(); showShare(order); });
-    const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'text-btn'; edit.textContent = 'Chỉnh sửa nội dung thư'; edit.disabled = order.status === 'paid' && order.editsRemaining === 0; edit.addEventListener('click', () => { data = validate(order.letterData); currentOrder = order; $('#lookup-dialog').close(); studio(); });
+    const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'text-btn'; edit.textContent = 'Chỉnh sửa nội dung thư'; edit.disabled = order.status === 'paid' && order.editsRemaining === 0; edit.addEventListener('click', () => { data = validate(order.letterData); currentOrder = order; if (order.shipping) for (const [key, selector] of Object.entries(shippingFields)) $(selector).value = order.shipping[key] || ''; giftSetId = order.giftSetId || 'flowers'; renderGiftOptions(); $('#lookup-dialog').close(); studio(); });
     const passwordLabel = document.createElement('label'); passwordLabel.textContent = 'Mật khẩu mở thư mới (để trống để giữ nguyên)';
     const password = document.createElement('input'); password.type = 'password'; password.placeholder = 'Tối thiểu 6 ký tự';
     const expiryLabel = document.createElement('label'); expiryLabel.textContent = 'Ngày hết hạn link';
@@ -375,7 +419,7 @@
   });
   $('#template-grid').innerHTML = Object.entries(templates).map(([key, template]) => `<article class="template-card" data-category="${key}"><div class="template-art ${key}"><span class="card-tag">${template.tag}</span><span class="art-motif a">${template.motif}</span><div class="mini-envelope"></div><span class="art-motif b">${template.motif}</span></div><h3>${template.name}</h3><p>${template.caption}</p><div class="card-actions"><button class="text-btn" data-sample="${key}"><i data-lucide="play"></i> Xem mẫu</button><button class="text-btn" data-template="${key}">Dùng mẫu này <i data-lucide="arrow-up-right"></i></button></div></article>`).join('');
   $('#theme-options').innerHTML = Object.entries(themes).map(([key, [name, color]]) => `<button type="button" class="theme-option" data-theme="${key}" aria-pressed="false"><span style="background:${color}"></span>${name}</button>`).join('');
-  $$('[data-create]').forEach(button => button.addEventListener('click', () => { currentOrder = null; studio(); }));
+  $$('[data-create]').forEach(button => button.addEventListener('click', () => { currentOrder = null; selectedPackage = button.dataset.package || 'online'; studio(); }));
   $$('[data-template]').forEach(button => button.addEventListener('click', () => { currentOrder = null; studio(button.dataset.template); }));
   $$('[data-sample]').forEach(button => button.addEventListener('click', () => studio(button.dataset.sample, true)));
   $$('[data-filter]').forEach(button => button.addEventListener('click', () => { $$('[data-filter]').forEach(b => { b.classList.toggle('active', b === button); b.setAttribute('aria-pressed', String(b === button)); }); $$('.template-card').forEach(card => { card.hidden = button.dataset.filter !== 'all' && card.dataset.category !== button.dataset.filter; }); }));

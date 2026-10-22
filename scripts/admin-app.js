@@ -161,7 +161,7 @@
       const status = order.status || 'pending';
       const statusLabel = { pending: 'Chờ duyệt', paid: 'Đã thanh toán', revoked: 'Đã thu hồi' }[status] || status;
       const pkg = order.package || 'free';
-      const pkgLabel = pkg === 'vip' ? 'VIP' : 'Cơ bản';
+      const pkgLabel = pkg === 'gift' ? 'CẦN SHIP QUÀ' : pkg === 'online' ? 'Thư online' : pkg === 'vip' ? 'VIP' : 'Cơ bản';
       const time = order.createdAt ? formatTime(order.createdAt) : '—';
       const letterPath = order.letterUrl ? shortPath(order.letterUrl) : '—';
       const letterHref = order.letterUrl || '#';
@@ -170,7 +170,7 @@
         <td><span class="order-id">${escapeHtml(order.id)}</span></td>
         <td>${time}</td>
         <td>${escapeHtml(order.phone || '—')}</td>
-        <td><span class="package-badge ${pkg}">${pkgLabel}</span></td>
+        <td><span class="package-badge ${pkg}">${pkgLabel}</span>${pkg === 'gift' ? `<small class="shipping-progress">${escapeHtml({ preparing: 'Đang chuẩn bị quà', sent: 'Đã gửi ship', delivered: 'Đã giao thành công' }[order.shippingStatus] || 'Đang chuẩn bị quà')}</small>` : ''}</td>
         <td><span class="status-badge ${status}">${statusLabel}</span><small class="edit-count">Còn ${order.editsRemaining ?? 3}/3 lượt sửa</small>${order.linkRevoked ? '<small>Khách đã thu hồi link</small>' : ''}</td>
         <td class="link-cell">${order.letterUrl ? `<a href="${escapeAttr(letterHref)}" target="_blank" rel="noopener">${escapeHtml(letterPath)}</a>` : '—'}</td>
         <td>
@@ -179,6 +179,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
               Xem trước thư
             </button>
+            ${pkg === 'gift' ? `<button class="action-btn info" data-action="download-qr" data-id="${order.id}">Tải ảnh QR để in thiệp</button>${status === 'paid' && order.shippingStatus === 'preparing' ? `<button class="action-btn warning" data-action="ship-sent" data-id="${order.id}">Đã gửi ship</button>` : ''}${order.shippingStatus === 'sent' ? `<button class="action-btn confirm" data-action="ship-delivered" data-id="${order.id}">Đã giao thành công</button>` : ''}` : ''}
             ${status === 'pending' ? `
               <button class="action-btn confirm" data-action="pay" data-id="${order.id}" title="Xác nhận thanh toán">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -244,6 +245,13 @@
       case 'preview':
         showPreview(orderId, order);
         break;
+      case 'download-qr':
+        downloadLetterQr(order);
+        break;
+      case 'ship-sent':
+      case 'ship-delivered':
+        showConfirm('Cập nhật giao hàng', `Cập nhật đơn <strong>${escapeHtml(orderId)}</strong> sang trạng thái <strong>${action === 'ship-sent' ? 'Đã gửi ship' : 'Đã giao thành công'}</strong>?`, () => updateShippingStatus(orderId, action === 'ship-sent' ? 'sent' : 'delivered'));
+        break;
       case 'pay':
         showConfirm(
           'Xác nhận thanh toán',
@@ -282,6 +290,18 @@
     } catch (err) {
       showToast('Lỗi cập nhật: ' + err.message, 'error');
     }
+  }
+  async function updateShippingStatus(orderId, status) {
+    try { allOrders[orderId] = await api(`/api/admin/orders/${orderId}/shipping`, { method: 'PATCH', body: JSON.stringify({ status }) }); renderOrders(); showToast('Đã cập nhật tình trạng giao quà.', 'success'); }
+    catch (error) { showToast(error.message, 'error'); }
+  }
+  function downloadLetterQr(order) {
+    try {
+      const qr = window.qrcode(0, 'L'); qr.addData(new URL(order.letterUrl, location.origin).href, 'Byte'); qr.make();
+      const svg = qr.createSvgTag({ cellSize: 8, margin: 4, scalable: true });
+      const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      const link = document.createElement('a'); link.href = url; link.download = `${order.id}-qr-thiep.svg`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { showToast('Không tạo được mã QR cho đơn này.', 'error'); }
   }
 
   /* ═══════════ LETTER PREVIEW ═══════════ */
@@ -358,6 +378,7 @@
             </a>
           </div>
         ` : ''}
+        ${order.package === 'gift' && order.shipping ? `<div class="preview-field shipping-detail"><span class="preview-label">CẦN SHIP QUÀ · ${escapeHtml({ preparing: 'Đang chuẩn bị quà', sent: 'Đã gửi ship', delivered: 'Đã giao thành công' }[order.shippingStatus] || 'Đang chuẩn bị quà')}</span><span class="preview-value">Set quà: ${escapeHtml(order.giftSetId || '—')}<br>Người nhận: ${escapeHtml(order.shipping.recipientName)} · ${escapeHtml(order.shipping.recipientPhone)}<br>Địa chỉ: ${escapeHtml(order.shipping.address)}<br>Ngày hẹn: ${escapeHtml(order.shipping.deliveryDate)} · ${escapeHtml(order.shipping.timeNote || 'Không ghi chú giờ')}<br>Lời nhắn trên thiệp: ${escapeHtml(order.shipping.cardNote || 'Không có')}<br>SĐT/Zalo người đặt (giữ bí mật): ${escapeHtml(order.shipping.buyerPhone)}<br>Tổng dự kiến: ${order.quote?.total == null ? 'Shop báo giá' : new Intl.NumberFormat('vi-VN').format(order.quote.total) + 'đ'}</span></div>` : ''}
       </div>
     `;
 

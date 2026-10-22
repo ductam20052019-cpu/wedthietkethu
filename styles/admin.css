@@ -596,6 +596,10 @@ body {
 }
 .package-badge.free { background: var(--info-bg); color: var(--info); }
 .package-badge.vip { background: var(--pink-bg); color: var(--pink); }
+.package-badge.gift { background:#9e4752; color:#fff; font-weight:700; letter-spacing:.04em; }
+.package-badge.online { background:var(--pink-bg); color:var(--pink); }
+.shipping-progress { display:block; margin-top:7px; color:var(--text-secondary); white-space:nowrap; }
+.shipping-detail .preview-value { line-height:1.9; overflow-wrap:anywhere; }
 
 /* Link column */
 .link-cell a {

@@ -1,6 +1,7 @@
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { LETTER_PRICE, ESTIMATED_SHIPPING, GIFT_SETS, quoteFor } from './order-catalog.mjs';
 
 const databaseFile = () => resolve(process.env.ORDER_DATA_FILE || 'data/orders.json');
 const orders = new Map();
@@ -23,7 +24,17 @@ const isAdmin = req => {
 };
 const isOpen = order => order.status === 'paid' && !order.linkRevoked && (!order.expiresAt || order.expiresAt > Date.now());
 const publicOrder = order => ({ id: order.id, status: order.status, package: order.package, createdAt: order.createdAt, updatedAt: order.updatedAt, letterData: isOpen(order) && !order.passwordHash ? order.letterData : undefined, letterUrl: order.letterUrl, passwordRequired: Boolean(order.passwordHash), expiresAt: order.expiresAt || null, linkRevoked: Boolean(order.linkRevoked) });
-const ownerOrder = order => ({ ...publicOrder(order), letterData: order.letterData, phone: order.phone, editCount: order.editCount || 0, editsRemaining: Math.max(0, 3 - (order.editCount || 0)) });
+const ownerOrder = order => ({ ...publicOrder(order), letterData: order.letterData, phone: order.phone, giftSetId: order.giftSetId || null, shipping: order.shipping || null, shippingStatus: order.shippingStatus || null, quote: order.quote || null, editCount: order.editCount || 0, editsRemaining: Math.max(0, 3 - (order.editCount || 0)) });
+const validShipping = value => value && typeof value === 'object' && !Array.isArray(value)
+  && ['recipientName', 'recipientPhone', 'address', 'deliveryDate', 'timeNote', 'cardNote', 'buyerPhone'].every(key => typeof value[key] === 'string')
+  && value.recipientName.trim().length >= 2 && value.recipientName.length <= 100
+  && /^0\d{8,10}$/.test(value.recipientPhone)
+  && value.address.trim().length >= 12 && value.address.length <= 500
+  && /^\d{4}-\d{2}-\d{2}$/.test(value.deliveryDate)
+  && !Number.isNaN(Date.parse(`${value.deliveryDate}T00:00:00`))
+  && Date.parse(`${value.deliveryDate}T23:59:59`) >= Date.now() - 86400000
+  && value.timeNote.length <= 120 && value.cardNote.length <= 300
+  && /^0\d{8,10}$/.test(value.buyerPhone);
 const notify = order => {
   for (const client of clients) {
     if (client.admin && !isAdmin(client.req)) { client.res.end(); continue; }
@@ -59,6 +70,7 @@ export async function loadOrders() {
 export async function handleApi(req, res, pathname, url) {
   if (!pathname.startsWith('/api/')) return false;
   try {
+    if (pathname === '/api/catalog' && req.method === 'GET') { json(res, 200, { letterPrice: LETTER_PRICE, estimatedShipping: ESTIMATED_SHIPPING, giftSets: GIFT_SETS, estimated: true }); return true; }
     if (pathname === '/api/admin/login' && req.method === 'POST') {
       if (limited(req)) return json(res, 429, { error: 'Thử lại sau một phút.' }), true;
       const input = await body(req);
@@ -90,14 +102,27 @@ export async function handleApi(req, res, pathname, url) {
       const { status } = await body(req); if (!['pending', 'paid', 'revoked'].includes(status)) return json(res, 400, { error: 'Trạng thái không hợp lệ.' }), true;
       order.status = status; order.updatedAt = Date.now(); await persist(); notify(order); json(res, 200, ownerOrder(order)); return true;
     }
+    const shippingStatus = /^\/api\/admin\/orders\/(YTGB[A-F0-9]{32})\/shipping$/.exec(pathname);
+    if (shippingStatus && req.method === 'PATCH') {
+      if (!isAdmin(req)) return json(res, 401, { error: 'Cần đăng nhập.' }), true;
+      const order = orders.get(shippingStatus[1]); if (!order) return json(res, 404, { error: 'Không tìm thấy đơn.' }), true;
+      if (order.package !== 'gift') return json(res, 400, { error: 'Đơn này không có quà cần giao.' }), true;
+      const { status } = await body(req);
+      const next = { preparing: 'sent', sent: 'delivered' }[order.shippingStatus];
+      if (status !== next || (status === 'sent' && order.status !== 'paid')) return json(res, 409, { error: 'Trạng thái vận chuyển không hợp lệ.' }), true;
+      order.shippingStatus = status; order.updatedAt = Date.now(); await persist(); notify(order); json(res, 200, ownerOrder(order)); return true;
+    }
     if (pathname === '/api/orders' && req.method === 'POST') {
       if (limited(req)) return json(res, 429, { error: 'Thử lại sau một phút.' }), true;
       const input = await body(req);
       if (!validLetter(input.letterData) || !/^0\d{8,10}$/.test(input.phone || '') || !/^\d{4}$/.test(input.pin || '')) return json(res, 400, { error: 'Cần số điện thoại, PIN 4 số và nội dung thư hợp lệ.' }), true;
+      const packageType = input.package === 'gift' ? 'gift' : input.package === 'online' || !input.package ? 'online' : null;
+      const quote = packageType && quoteFor(packageType, input.giftSetId);
+      if (!quote || (packageType === 'gift' && !validShipping(input.shipping))) return json(res, 400, { error: 'Thông tin gói quà hoặc địa chỉ giao hàng không hợp lệ.' }), true;
       const id = 'YTGB' + randomBytes(16).toString('hex').toUpperCase();
       const ownerToken = randomBytes(24).toString('hex');
       const slug = randomBytes(9).toString('base64url');
-      const order = { id, slug, phone: input.phone, pinHash: hash(`${id}:${input.pin}`), ownerHash: hash(ownerToken), package: 'vip', status: 'pending', createdAt: Date.now(), updatedAt: Date.now(), letterData: input.letterData, letterUrl: `/thu/${slug}`, editCount: 0 };
+      const order = { id, slug, phone: input.phone, pinHash: hash(`${id}:${input.pin}`), ownerHash: hash(ownerToken), package: packageType, giftSetId: packageType === 'gift' ? input.giftSetId : null, shipping: packageType === 'gift' ? input.shipping : null, shippingStatus: packageType === 'gift' ? 'preparing' : null, quote, status: 'pending', createdAt: Date.now(), updatedAt: Date.now(), letterData: input.letterData, letterUrl: `/thu/${slug}`, editCount: 0 };
       orders.set(id, order); await persist(); notify(order); json(res, 201, { ...ownerOrder(order), ownerToken }); return true;
     }
     if (pathname === '/api/orders/recover' && req.method === 'POST') {
