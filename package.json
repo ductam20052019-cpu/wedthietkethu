@@ -10,10 +10,10 @@
   "scripts": {
     "build:assets": "node scripts/build-letter-assets.mjs",
     "build:hosting": "npm run build:assets && node scripts/build-hosting.mjs",
-    "deploy": "firebase deploy --only hosting",
+    "deploy": "node -e \"console.error('Cần triển khai máy chủ Node cùng ổ đĩa bền vững; xem ORDER-SYSTEM.md');process.exit(1)\"",
     "dev": "node scripts/server.mjs",
     "start": "node scripts/server.mjs",
-    "test": "node --test tests/server.test.mjs",
+    "test": "node --test tests/server.test.mjs tests/orders.test.mjs",
     "test:browser": "node --test --test-concurrency=1 tests/letter.browser.test.mjs",
     "build": "npm run build:hosting"
   },

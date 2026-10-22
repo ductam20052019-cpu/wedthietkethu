@@ -10,13 +10,15 @@
     flowers: { name: 'Dịu dàng như một đóa hoa', caption: 'Hoa anh đào · Ánh sáng lấp lánh', tag: '20/10 · 8/3 · NGÀY CỦA MẸ', motif: '❀', theme: 'minimal', effect: 'petals', title: 'Một đóa hoa, ngàn lời thương', recipient: 'Người phụ nữ tuyệt vời', message: 'Gửi bạn một chút dịu dàng trong ngày đặc biệt này.\n\nCảm ơn bạn vì những yêu thương, sự kiên nhẫn và ánh sáng mà bạn mang đến cho cuộc sống. Mong bạn luôn được nâng niu, luôn có thời gian cho chính mình và luôn mỉm cười với những điều giản dị.\n\nChúc bạn một ngày thật đẹp, như chính bạn vậy!', sender: 'Một người thương bạn' },
     christmas: { name: 'Một mùa an lành', caption: 'Tuyết rơi · Trời sao · Ấm áp', tag: 'SEASON’S GREETINGS', motif: '✴', theme: 'midnight', effect: 'snow', title: 'Gửi bạn một mùa đông ấm áp', recipient: 'Bạn yêu quý', message: 'Khi những ánh đèn nhỏ sáng lên, tớ muốn gửi đến bạn một lời chúc thật ấm áp.\n\nChúc bạn một mùa Giáng sinh an lành, một năm mới đầy hy vọng và thật nhiều khoảnh khắc ở bên những người mình thương.\n\nMong những điều tốt đẹp đang trên đường tìm đến bạn. Merry Christmas & Happy New Year! ✨', sender: 'Người bạn phương xa' }
   };
-  const defaults = { v: 1, occasion: 'love', ...pickTemplate('love'), envelope: 'classic', seal: '#b36a70', font: 'hand', speed: 'medium', music: true, photo: '', audio: '' };
-  let data = { ...defaults }, view = 'home', preview, receiver, toastTimer, saveTimer;
+  const defaults = { v: 1, occasion: 'love', ...pickTemplate('love'), envelope: 'classic', seal: '#b36a70', font: 'hand', speed: 'medium', music: true, musicTrack: 'romantic', photo: '', photos: [], audio: '' };
+  let data = { ...defaults }, view = 'home', preview, receiver, toastTimer, saveTimer, currentOrder, orderStream;
+  let pendingPhotos = [], pendingAudio = null;
+  async function api(path, options) { const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Không kết nối được máy chủ.'); return result; }
   const music = new MusicBox();
   function pickTemplate(key) { const { theme, effect, title, recipient, message, sender } = templates[key]; return { theme, effect, title, recipient, message, sender }; }
   function icons() { window.lucide?.createIcons(); }
   function toast(message) { clearTimeout(toastTimer); $('#toast').textContent = message; $('#toast').hidden = false; toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 4000); }
-  function safeUrl(value) { if (!value) return ''; try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.href : ''; } catch { return ''; } }
+  function safeUrl(value) { if (!value) return ''; if (/^\/media\/YTGB[A-F0-9]{32}\/[a-f0-9]{32}\.(webp|mp3|m4a)$/.test(value)) return value; try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.href : ''; } catch { return ''; } }
   function validate(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid letter');
     const output = { ...defaults };
@@ -31,6 +33,8 @@
     if (!/^#[0-9a-f]{6}$/i.test(raw.seal) || typeof raw.music !== 'boolean') throw new Error('Invalid style');
     output.seal = raw.seal; output.music = raw.music;
     for (const key of ['photo', 'audio']) { if (raw[key] && !safeUrl(raw[key])) throw new Error('Invalid media URL'); }
+    output.photos = Array.isArray(raw.photos) ? raw.photos.filter(url => typeof url === 'string' && safeUrl(url)).slice(0, 3) : [];
+    output.musicTrack = ['romantic', 'birthday', 'memories', 'family'].includes(raw.musicTrack) ? raw.musicTrack : 'romantic';
     return output;
   }
   // Standard UTF-8 Base64 links remain compatible with the requested format.
@@ -102,7 +106,8 @@
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!this.context) this.context = new AudioContext();
         await this.context.resume(); if (!this.active || this.run !== run) return;
-        const notes = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 880, 783.99, 659.25, 587.33, 523.25, 392]; let index = 0;
+        const tunes = { romantic: [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 880, 783.99], birthday: [392, 392, 440, 392, 523.25, 493.88, 392, 392, 440, 392, 587.33, 523.25], memories: [440, 523.25, 659.25, 587.33, 523.25, 440, 392, 440], family: [392, 493.88, 587.33, 493.88, 440, 392, 329.63, 392] };
+        const notes = tunes[letter.musicTrack] || tunes.romantic; let index = 0;
         const note = () => {
           if (!this.active || this.run !== run || document.hidden) return;
           const oscillator = this.context.createOscillator(), gain = this.context.createGain(), now = this.context.currentTime;
@@ -175,9 +180,9 @@
       const paper = document.createElement('article'); paper.className = `reading-paper font-${this.data.font}`; paper.tabIndex = -1; paper.setAttribute('aria-label', 'Nội dung lá thư');
       paper.innerHTML = '<div class="paper-top" aria-hidden="true">❦</div><h2></h2><div class="letter-content"></div><div class="letter-signature"></div><button class="text-btn skip-typing">Hiện toàn bộ lá thư</button>';
       paper.querySelector('h2').textContent = `Gửi ${this.data.recipient || 'bạn'},`;
-      if (this.data.photo) {
-        const image = document.createElement('img'); image.className = 'memory-photo'; image.alt = 'Ảnh kỷ niệm người gửi dành tặng'; image.referrerPolicy = 'no-referrer'; image.src = this.data.photo;
-        image.onerror = () => { image.remove(); const note = document.createElement('p'); note.className = 'field-hint'; note.textContent = 'Ảnh kỷ niệm hiện không tải được.'; paper.querySelector('h2').after(note); };
+      for (const photo of this.data.photos?.length ? this.data.photos : this.data.photo ? [this.data.photo] : []) {
+        const image = document.createElement('img'); image.className = 'memory-photo'; image.alt = 'Ảnh kỷ niệm người gửi dành tặng'; image.referrerPolicy = 'no-referrer'; image.src = photo;
+        image.onerror = () => { image.remove(); };
         paper.querySelector('h2').after(image);
       }
       this.host.append(paper); if (!instant) paper.focus({ preventScroll: true });
@@ -199,25 +204,176 @@
     destroy() { this.clearTimers(); this.particles?.destroy(); this.host.replaceChildren(); }
   }
 
+  async function compressPhoto(file) {
+    if (!file.type.startsWith('image/')) throw new Error('Vui lòng chọn tệp ảnh.');
+    const bitmap = await createImageBitmap(file); let scale = Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas'); let blob;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', Math.max(.55, .8 - attempt * .04)));
+      if (blob?.type === 'image/webp' && blob.size <= 200000) break;
+      scale *= .85;
+    }
+    bitmap.close();
+    if (!blob || blob.type !== 'image/webp' || blob.size > 200000) throw new Error('Ảnh không thể nén xuống dưới 200KB. Hãy chọn ảnh khác.');
+    return blob;
+  }
+  function renderPhotos() {
+    const host = $('#photos-preview'); host.replaceChildren();
+    [...data.photos.map((url, index) => ({ url, index, saved: true })), ...pendingPhotos.map((item, index) => ({ url: item.url, index, saved: false }))].forEach(item => {
+      const frame = document.createElement('div'); frame.className = 'polaroid';
+      const img = document.createElement('img'); img.src = item.url; img.alt = 'Ảnh kỷ niệm xem trước';
+      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Xóa ảnh'; remove.addEventListener('click', () => {
+        if (item.saved) data.photos.splice(item.index, 1); else { URL.revokeObjectURL(pendingPhotos[item.index].url); pendingPhotos.splice(item.index, 1); }
+        renderPhotos(); refreshPreview();
+      }); frame.append(img, remove); host.append(frame);
+    });
+  }
+  async function uploadMedia(order) {
+    const upload = async (blob, type) => {
+      const response = await fetch(`/api/orders/${order.id}/media`, { method: 'POST', headers: { 'Content-Type': type, 'X-Owner-Token': order.ownerToken }, body: blob });
+      const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Tải tệp thất bại.'); return result.url;
+    };
+    for (const item of pendingPhotos) data.photos.push(await upload(item.blob, 'image/webp'));
+    pendingPhotos.forEach(item => URL.revokeObjectURL(item.url)); pendingPhotos = [];
+    if (pendingAudio) { data.audio = await upload(pendingAudio.blob, pendingAudio.type); URL.revokeObjectURL(pendingAudio.url); pendingAudio = null; }
+    renderPhotos(); saveDraft();
+    return data;
+  }
+  $('#photos-input').addEventListener('change', async event => {
+    try {
+      const files = [...event.target.files];
+      if (files.length + data.photos.length + pendingPhotos.length > 3) throw new Error('Tối đa 3 ảnh cho mỗi thư.');
+      for (const file of files) { const blob = await compressPhoto(file); pendingPhotos.push({ blob, url: URL.createObjectURL(blob) }); }
+      renderPhotos(); toast('Ảnh đã được nén, sẽ tải lên khi lưu thư.');
+    } catch (error) { toast(error.message); } finally { event.target.value = ''; }
+  });
+  $('#audio-input').addEventListener('change', event => {
+    const file = event.target.files[0]; if (!file) return;
+    const type = /\.mp3$/i.test(file.name) ? 'audio/mpeg' : /\.m4a$/i.test(file.name) ? 'audio/mp4' : '';
+    if (!type || file.size > 5 * 1024 * 1024) { toast('Chỉ nhận MP3/M4A tối đa 5MB.'); event.target.value = ''; return; }
+    if (pendingAudio) URL.revokeObjectURL(pendingAudio.url);
+    pendingAudio = { blob: file, type, url: URL.createObjectURL(file) };
+    $('#audio-preview').src = pendingAudio.url; $('#audio-preview').hidden = false; music.stop();
+  });
+  $('#preview-track').addEventListener('click', () => music.active ? music.stop() : music.play({ ...data, audio: '' }));
+  $$('[data-view-policy]').forEach(link => link.addEventListener('click', event => { event.preventDefault(); link.closest('dialog')?.close(); changeView('home'); $('#faq').scrollIntoView({ behavior: 'smooth' }); }));
+
   async function generate() {
     setTab('edit'); if (!$('#editor').reportValidity()) return;
     if (['title', 'recipient', 'message', 'sender'].some(key => !data[key].trim())) { toast('Hãy điền đầy đủ tiêu đề, người nhận, lời chúc và chữ ký.'); return; }
     if (['photo', 'audio'].some(key => data[key] && !safeUrl(data[key]))) { toast('Link ảnh và nhạc cần bắt đầu bằng https://.'); return; }
-    const button = $('#generate'); button.disabled = true;
-    try {
-      const url = new URL(location.href); url.search = ''; url.hash = ''; url.searchParams.set('letter', await encodeCompact(validate(data)));
-      $('#share-url').value = url.href; $('#open-link').href = url.href; $('#qr-code').replaceChildren(); $('#qr-status').textContent = '';
-      try { const qr = window.qrcode(0, 'L'); qr.addData(url.href, 'Byte'); qr.make(); $('#qr-code').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true }); $('#qr-code svg').setAttribute('role', 'img'); $('#qr-code svg').setAttribute('aria-label', 'Mã QR mở lá thư'); $('#qr-status').textContent = 'Quét mã để mở lá thư trên điện thoại.'; }
-      catch { $('#qr-status').textContent = 'Link quá dài để tạo QR hoặc thư viện QR chưa tải được. Bạn vẫn có thể copy link; hãy rút ngắn lời chúc hoặc link ảnh để tạo QR.'; }
-      const local = location.protocol === 'file:' || ['localhost', '127.0.0.1', '0.0.0.0'].includes(location.hostname);
-      $('#hosting-hint').textContent = local ? 'Bạn đang chạy bản cục bộ. Để gửi cho người khác, hãy đưa website lên hosting HTTPS và tạo lại link tại địa chỉ đó.' : 'Giữ nguyên toàn bộ link khi gửi. Nội dung trong link không được mã hóa bảo mật.';
-      $('#share-dialog').showModal();
-    } catch { toast('Chưa tạo được link. Hãy kiểm tra nội dung và thử lại.'); } finally { button.disabled = false; }
+    if (currentOrder?.ownerToken) {
+      const button = $('#generate'); button.disabled = true;
+      try { await uploadMedia(currentOrder); const order = await api(`/api/orders/${currentOrder.id}`, { method: 'PUT', body: JSON.stringify({ ownerToken: currentOrder.ownerToken, letterData: validate(data) }) }); showShare({ ...order, ownerToken: currentOrder.ownerToken }); }
+      catch (error) { toast(error.message); } finally { button.disabled = false; }
+      return;
+    }
+    $('#identity-dialog').showModal();
   }
+  function showShare(order) {
+    currentOrder = order;
+    $('#order-code').textContent = `Mã đơn hàng: ${order.id}`;
+    $('#order-state').textContent = order.status === 'paid' ? 'Đã mở khóa Premium. Bạn có thể gửi link và mã QR.' : order.status === 'revoked' ? 'Đơn đã bị thu hồi. Vui lòng liên hệ shop.' : 'Đang chờ thanh toán. Trang sẽ tự mở khóa khi shop xác nhận.';
+    const url = new URL(order.letterUrl, location.origin);
+    $('#share-url').value = url.href; $('#open-link').href = url.href;
+    $('#qr-code').replaceChildren(); $('#qr-status').textContent = '';
+    try { const qr = window.qrcode(0, 'L'); qr.addData(url.href, 'Byte'); qr.make(); $('#qr-code').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true }); $('#qr-status').textContent = 'Quét mã QR để mở thư sau khi thanh toán.'; }
+    catch { $('#qr-status').textContent = 'Không tạo được mã QR; bạn vẫn có thể sao chép link.'; }
+    $('#hosting-hint').textContent = 'Mã đơn là khóa tra cứu. Chỉ gửi cho người bạn tin tưởng.';
+    if (!$('#share-dialog').open) $('#share-dialog').showModal();
+    subscribeOrder(order.id);
+  }
+  function subscribeOrder(id) {
+    orderStream?.close();
+    orderStream = new EventSource(`/api/orders/${id}/events`);
+    orderStream.onmessage = event => {
+      const update = JSON.parse(event.data); const prior = currentOrder?.status;
+      currentOrder = { ...update, ownerToken: currentOrder?.ownerToken }; $('#order-state').textContent = update.status === 'paid' ? 'Đã mở khóa Premium! Bây giờ bạn có thể gửi thư.' : update.status === 'revoked' ? 'Đơn đã bị thu hồi.' : 'Đang chờ thanh toán.';
+      if (update.status === 'paid' && prior !== 'paid') toast('Thư đã được mở khóa Premium!');
+      if (view === 'receiver') showOrderReceiver(update);
+    };
+  }
+  function showOrderReceiver(order) {
+    const stage = $('#receiver-stage');
+    music.stop();
+    receiver?.destroy(); receiver = null;
+    $('#receiver-view .receiver-controls').hidden = order.status !== 'paid';
+    if (order.status === 'paid' && order.letterData && !order.linkRevoked) { data = validate(order.letterData); receiver = new Experience(stage, data); }
+    else {
+      stage.replaceChildren(); const notice = document.createElement('div'); notice.className = 'order-waiting';
+      if (order.status === 'paid' && order.passwordRequired && !order.linkRevoked && (!order.expiresAt || order.expiresAt > Date.now())) {
+        const form = document.createElement('form'); const label = document.createElement('label'); label.textContent = 'Nhập mật khẩu mở thư';
+        const password = document.createElement('input'); password.type = 'password'; password.required = true;
+        const button = document.createElement('button'); button.className = 'btn'; button.textContent = 'Mở thư';
+        const error = document.createElement('p'); form.append(label, password, button, error);
+        form.addEventListener('submit', async event => { event.preventDefault(); try { const result = await api(`/api/thu/${order.letterUrl.split('/').pop()}/open`, { method: 'POST', body: JSON.stringify({ password: password.value }) }); showOrderReceiver({ ...order, letterData: result.letterData, passwordRequired: false }); } catch (issue) { error.textContent = issue.message; } });
+        notice.append(form);
+      } else notice.textContent = order.linkRevoked ? 'Link đã được thu hồi.' : order.expiresAt && order.expiresAt <= Date.now() ? 'Link đã hết hạn.' : order.status === 'revoked' ? 'Bức thư đã bị thu hồi.' : 'Bức thư đang chờ xác nhận thanh toán. Trang sẽ tự mở khóa.';
+      stage.append(notice);
+    }
+  }
+  $('#identity-form').addEventListener('submit', async event => {
+    event.preventDefault(); const form = event.currentTarget; if (!form.reportValidity()) return;
+    const button = form.querySelector('button[type=submit]'); button.disabled = true;
+    try {
+      let order = await api('/api/orders', { method: 'POST', body: JSON.stringify({ phone: $('#customer-phone').value.trim(), pin: $('#customer-pin').value.trim(), letterData: validate(data) }) });
+      localStorage.setItem(`ytgb-owner-${order.id}`, order.ownerToken); localStorage.setItem('ytgb-current-order', order.id);
+      currentOrder = order; await uploadMedia(order);
+      order = { ...await api(`/api/orders/${order.id}`, { method: 'PUT', body: JSON.stringify({ ownerToken: order.ownerToken, letterData: validate(data) }) }), ownerToken: order.ownerToken };
+      $('#identity-dialog').close(); showShare(order);
+    } catch (error) { toast(error.message); } finally { button.disabled = false; }
+  });
+  $('#open-lookup').addEventListener('click', () => $('#lookup-dialog').showModal());
+  $$('[data-open-lookup]').forEach(button => button.addEventListener('click', () => $('#lookup-dialog').showModal()));
+  $('#dismiss-resume').addEventListener('click', () => { $('#resume-banner').hidden = true; sessionStorage.setItem('ytgb-resume-dismissed', '1'); });
+  $('#resume-order').addEventListener('click', async () => {
+    const id = localStorage.getItem('ytgb-current-order'), token = id && localStorage.getItem(`ytgb-owner-${id}`);
+    if (!id || !token) return;
+    try { const order = await api(`/api/orders/${id}/owner`, { headers: { 'X-Owner-Token': token } }); currentOrder = { ...order, ownerToken: token }; data = validate(order.letterData); $('#resume-banner').hidden = true; studio(); }
+    catch (error) { toast(error.message); }
+  });
+  function customerPanel(order) {
+    const row = document.createElement('div'); row.className = 'lookup-result';
+    const heading = document.createElement('h3'); heading.textContent = order.id;
+    const status = document.createElement('p'); status.textContent = `Trạng thái: ${order.status === 'paid' ? 'Đã thanh toán' : order.status === 'revoked' ? 'Đã thu hồi' : 'Chờ thanh toán'} · ${order.status === 'paid' ? `Còn ${order.editsRemaining}/3 lần sửa miễn phí` : 'Sửa không giới hạn trước thanh toán'}`;
+    const short = document.createElement('code'); short.textContent = order.letterUrl;
+    const copyButton = document.createElement('button'); copyButton.type = 'button'; copyButton.className = 'text-btn'; copyButton.textContent = 'Sao chép link ngắn'; copyButton.addEventListener('click', () => copy(new URL(order.letterUrl, location.origin).href, 'Đã sao chép link thư.'));
+    const qrButton = document.createElement('button'); qrButton.type = 'button'; qrButton.className = 'text-btn'; qrButton.textContent = 'Xem và tải mã QR'; qrButton.addEventListener('click', () => { $('#lookup-dialog').close(); showShare(order); });
+    const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'text-btn'; edit.textContent = 'Chỉnh sửa nội dung thư'; edit.disabled = order.status === 'paid' && order.editsRemaining === 0; edit.addEventListener('click', () => { data = validate(order.letterData); currentOrder = order; $('#lookup-dialog').close(); studio(); });
+    const passwordLabel = document.createElement('label'); passwordLabel.textContent = 'Mật khẩu mở thư mới (để trống để giữ nguyên)';
+    const password = document.createElement('input'); password.type = 'password'; password.placeholder = 'Tối thiểu 6 ký tự';
+    const expiryLabel = document.createElement('label'); expiryLabel.textContent = 'Ngày hết hạn link';
+    const expiry = document.createElement('input'); expiry.type = 'date'; expiry.value = order.expiresAt ? new Date(order.expiresAt).toISOString().slice(0, 10) : '';
+    const save = document.createElement('button'); save.type = 'button'; save.className = 'btn small'; save.textContent = 'Lưu mật khẩu & hạn sử dụng';
+    const clearPassword = document.createElement('button'); clearPassword.type = 'button'; clearPassword.className = 'text-btn'; clearPassword.textContent = 'Gỡ mật khẩu';
+    const revoke = document.createElement('button'); revoke.type = 'button'; revoke.className = 'text-btn'; revoke.textContent = order.linkRevoked ? 'Mở lại link' : 'Thu hồi link ngay';
+    const feedback = document.createElement('p'); feedback.setAttribute('role', 'status');
+    const updateSettings = async payload => {
+      try { const updated = await api(`/api/orders/${order.id}/settings`, { method: 'PATCH', body: JSON.stringify({ ownerToken: order.ownerToken, ...payload }) }); Object.assign(order, updated); feedback.textContent = 'Đã cập nhật.'; revoke.textContent = order.linkRevoked ? 'Mở lại link' : 'Thu hồi link ngay'; }
+      catch (error) { feedback.textContent = error.message; }
+    };
+    save.addEventListener('click', () => { const expiresAt = expiry.value ? new Date(`${expiry.value}T23:59:59`).getTime() : null; updateSettings({ ...(password.value ? { password: password.value } : {}), expiresAt }); password.value = ''; });
+    clearPassword.addEventListener('click', () => updateSettings({ password: '' }));
+    revoke.addEventListener('click', () => updateSettings({ linkRevoked: !order.linkRevoked }));
+    row.append(heading, status, short, copyButton, qrButton, edit, passwordLabel, password, expiryLabel, expiry, save, clearPassword, revoke, feedback);
+    return row;
+  }
+  $('#lookup-form').addEventListener('submit', async event => {
+    event.preventDefault(); const results = $('#lookup-results'); results.replaceChildren();
+    try {
+      const found = await api('/api/orders/recover', { method: 'POST', body: JSON.stringify({ id: $('#lookup-code').value.trim(), phone: $('#lookup-phone').value.trim(), pin: $('#lookup-pin').value.trim() }) });
+      for (const order of Array.isArray(found) ? found : [found]) {
+        localStorage.setItem(`ytgb-owner-${order.id}`, order.ownerToken);
+        results.append(customerPanel(order));
+      }
+    } catch (error) { results.textContent = error.message; }
+  });
   $('#template-grid').innerHTML = Object.entries(templates).map(([key, template]) => `<article class="template-card" data-category="${key}"><div class="template-art ${key}"><span class="card-tag">${template.tag}</span><span class="art-motif a">${template.motif}</span><div class="mini-envelope"></div><span class="art-motif b">${template.motif}</span></div><h3>${template.name}</h3><p>${template.caption}</p><div class="card-actions"><button class="text-btn" data-sample="${key}"><i data-lucide="play"></i> Xem mẫu</button><button class="text-btn" data-template="${key}">Dùng mẫu này <i data-lucide="arrow-up-right"></i></button></div></article>`).join('');
   $('#theme-options').innerHTML = Object.entries(themes).map(([key, [name, color]]) => `<button type="button" class="theme-option" data-theme="${key}" aria-pressed="false"><span style="background:${color}"></span>${name}</button>`).join('');
-  $$('[data-create]').forEach(button => button.addEventListener('click', () => studio()));
-  $$('[data-template]').forEach(button => button.addEventListener('click', () => studio(button.dataset.template)));
+  $$('[data-create]').forEach(button => button.addEventListener('click', () => { currentOrder = null; studio(); }));
+  $$('[data-template]').forEach(button => button.addEventListener('click', () => { currentOrder = null; studio(button.dataset.template); }));
   $$('[data-sample]').forEach(button => button.addEventListener('click', () => studio(button.dataset.sample, true)));
   $$('[data-filter]').forEach(button => button.addEventListener('click', () => { $$('[data-filter]').forEach(b => { b.classList.toggle('active', b === button); b.setAttribute('aria-pressed', String(b === button)); }); $$('.template-card').forEach(card => { card.hidden = button.dataset.filter !== 'all' && card.dataset.category !== button.dataset.filter; }); }));
   $$('[data-theme]').forEach(button => button.addEventListener('click', () => { data.theme = button.dataset.theme; populateForm(); refreshPreview(); }));
@@ -227,6 +383,7 @@
   $('#test-open').addEventListener('click', () => { preview.reset(); preview.open(); });
   $('#generate').addEventListener('click', generate);
   $('#copy-link').addEventListener('click', () => copy($('#share-url').value, 'Đã sao chép link. Gửi thương thôi! ♡', $('#share-url')));
+  $('#download-qr').addEventListener('click', () => { const svg = $('#qr-code svg'); if (!svg) return toast('Chưa có mã QR để tải.'); const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${currentOrder?.id || 'thu'}-qr.svg`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); });
   $$('[data-order]').forEach(button => button.addEventListener('click', showOrder));
   $('#copy-order').addEventListener('click', () => copy($('#order-note').value, 'Đã sao chép yêu cầu thiết kế.', $('#order-note')));
   $$('[data-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
@@ -235,15 +392,26 @@
   $('#error-home').addEventListener('click', () => { $('#error-dialog').close(); home(); });
   $('#replay').addEventListener('click', () => receiver?.reset());
   $('#sound-toggle').addEventListener('click', () => music.active ? music.stop() : music.play(data));
-  $('#create-similar').addEventListener('click', () => studio());
+  $('#create-similar').addEventListener('click', () => { currentOrder = null; studio(); });
   $('#header').addEventListener('click', event => { const anchor = event.target.closest('a'); if (anchor && view !== 'home') { changeView('home'); history.replaceState(null, '', location.pathname + anchor.hash); requestAnimationFrame(() => $(anchor.hash)?.scrollIntoView()); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden) music.stop(); });
   window.addEventListener('pagehide', () => { music.stop(); preview?.destroy(); receiver?.destroy(); });
   window.addEventListener('pageshow', event => { if (event.persisted) { if (view === 'studio') preview = new Experience($('#preview-stage'), data); if (view === 'receiver') receiver = new Experience($('#receiver-stage'), data); } });
   async function init() {
     icons(); const params = new URLSearchParams(location.search);
-    if (params.has('letter')) { changeView('receiver'); try { data = await decodeLetter(params.get('letter')); receiver = new Experience($('#receiver-stage'), data); document.title = `Một lá thư từ ${data.sender} — Tâm gửi`; } catch { $('#error-dialog').showModal(); } }
-    else { loadDraft(); if (location.hash === '#studio') studio(); }
+    if (location.pathname.startsWith('/thu/')) { changeView('receiver'); try { const slug = location.pathname.split('/').pop(); const order = await api(`/api/thu/${encodeURIComponent(slug)}`); currentOrder = order; showOrderReceiver(order); subscribeOrder(order.id); } catch { $('#error-dialog').showModal(); } }
+    else if (params.has('order')) { changeView('receiver'); try { const order = await api(`/api/orders/${encodeURIComponent(params.get('order'))}`); currentOrder = order; showOrderReceiver(order); subscribeOrder(order.id); } catch { $('#error-dialog').showModal(); } }
+    else if (params.has('letter')) { changeView('receiver'); try { data = await decodeLetter(params.get('letter')); receiver = new Experience($('#receiver-stage'), data); document.title = `Một lá thư từ ${data.sender} — Tâm gửi`; } catch { $('#error-dialog').showModal(); } }
+    else {
+      loadDraft();
+      const id = localStorage.getItem('ytgb-current-order'); const ownerToken = id && localStorage.getItem(`ytgb-owner-${id}`);
+      if (id && ownerToken) {
+        if (!sessionStorage.getItem('ytgb-resume-dismissed')) { $('#resume-message').textContent = `Khôi phục bức thư bạn đang thực hiện (Mã: ${id})`; $('#resume-banner').hidden = false; }
+        try { currentOrder = { ...await api(`/api/orders/${id}/owner`, { headers: { 'X-Owner-Token': ownerToken } }), ownerToken }; }
+        catch { /* Draft remains available offline. */ }
+      }
+      if (location.hash === '#studio') studio();
+    }
   }
   init();
 })();

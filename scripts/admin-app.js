@@ -1,6 +1,6 @@
 /**
  * Admin Dashboard — Yêu thương gửi bạn
- * Firebase Realtime Database + Firebase Auth
+ * Node API, server sessions and Server-Sent Events
  *
  * Cấu trúc DB:
  *   orders/{orderId}: { id, phone, package, status, createdAt, letterUrl, letterData, editCount, maxEdits }
@@ -10,17 +10,12 @@
 (() => {
   'use strict';
 
-  /* ═══════════ FIREBASE CONFIG ═══════════ */
-  // Thay bằng config Firebase thực của bạn
-  const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyDEMO_KEY_REPLACE_ME",
-    authDomain: "tam-gui-wedthietkethu.firebaseapp.com",
-    databaseURL: "https://tam-gui-wedthietkethu-default-rtdb.firebaseio.com",
-    projectId: "tam-gui-wedthietkethu",
-    storageBucket: "tam-gui-wedthietkethu.appspot.com",
-    messagingSenderId: "000000000000",
-    appId: "1:000000000000:web:0000000000000000"
-  };
+  async function api(path, options) {
+    const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } });
+    const result = await response.json();
+    if (!response.ok) { const error = new Error(result.error || 'Yêu cầu thất bại'); error.status = response.status; throw error; }
+    return result;
+  }
 
   /* ═══════════ PRICE MAP (VNĐ) ═══════════ */
   const PRICE_MAP = { free: 0, vip: 150000 };
@@ -52,35 +47,30 @@
   const confirmOk = $('#confirm-ok');
   const toastEl = $('#admin-toast');
 
-  let db, auth, ordersRef;
+  let stream;
   let allOrders = {};
   let currentFilter = 'all';
   let searchQuery = '';
   let toastTimer = null;
   let confirmCallback = null;
-
-  /* ═══════════ INIT FIREBASE ═══════════ */
-  function initFirebase() {
-    if (typeof firebase === 'undefined') {
-      showToast('Firebase SDK chưa tải xong. Tải lại trang.', 'error');
-      return false;
-    }
-    firebase.initializeApp(FIREBASE_CONFIG);
-    auth = firebase.auth();
-    db = firebase.database();
-    ordersRef = db.ref('orders');
-    return true;
+  let previewAudioContext, previewMusicTimer;
+  function stopPreviewMusic() {
+    clearInterval(previewMusicTimer); previewMusicTimer = null;
+    previewAudioContext?.close().catch(() => {}); previewAudioContext = null;
   }
-
-  /* ═══════════ AUTH ═══════════ */
-  function setupAuth() {
-    auth.onAuthStateChanged((user) => {
-      if (user) {
-        showDashboard(user);
-      } else {
-        showLogin();
-      }
-    });
+  async function togglePreviewMusic(track, button) {
+    if (previewAudioContext) { stopPreviewMusic(); button.textContent = 'Nghe nhạc nền'; return; }
+    const tunes = { romantic: [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 880, 783.99], birthday: [392, 392, 440, 392, 523.25, 493.88, 392, 392, 440, 392, 587.33, 523.25], memories: [440, 523.25, 659.25, 587.33, 523.25, 440, 392, 440], family: [392, 493.88, 587.33, 493.88, 440, 392, 329.63, 392] };
+    try {
+      const context = new (window.AudioContext || window.webkitAudioContext)(); previewAudioContext = context;
+      await context.resume(); if (previewAudioContext !== context) return;
+      const notes = tunes[track] || tunes.romantic; let index = 0;
+      const play = () => { const oscillator = context.createOscillator(), gain = context.createGain(), now = context.currentTime;
+        oscillator.frequency.value = notes[index++ % notes.length]; gain.gain.setValueAtTime(.1, now); gain.gain.exponentialRampToValueAtTime(.001, now + 1.8);
+        oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(now + 1.9); oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+      };
+      play(); previewMusicTimer = setInterval(play, 600); button.textContent = 'Dừng nhạc nền';
+    } catch { stopPreviewMusic(); showToast('Không phát được nhạc trên thiết bị này.', 'error'); }
   }
 
   async function doLogin(email, password) {
@@ -88,25 +78,14 @@
     loginBtn.disabled = true;
     loginError.hidden = true;
     try {
-      await auth.signInWithEmailAndPassword(email, password);
+      await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      showDashboard({ email });
     } catch (err) {
-      loginError.textContent = mapAuthError(err.code);
+      loginError.textContent = err.message;
       loginError.hidden = false;
       loginBtn.classList.remove('loading');
       loginBtn.disabled = false;
     }
-  }
-
-  function mapAuthError(code) {
-    const map = {
-      'auth/user-not-found': 'Tài khoản không tồn tại.',
-      'auth/wrong-password': 'Mật khẩu không đúng.',
-      'auth/invalid-credential': 'Thông tin đăng nhập không hợp lệ.',
-      'auth/invalid-email': 'Email không hợp lệ.',
-      'auth/too-many-requests': 'Quá nhiều lần thử. Vui lòng đợi.',
-      'auth/network-request-failed': 'Lỗi mạng. Kiểm tra kết nối internet.',
-    };
-    return map[code] || 'Đăng nhập thất bại. Vui lòng thử lại.';
   }
 
   function showLogin() {
@@ -115,6 +94,8 @@
     loginBtn.classList.remove('loading');
     loginBtn.disabled = false;
     stopRealtimeListeners();
+    previewModal.close(); confirmModal.close(); previewBody.replaceChildren();
+    allOrders = {}; ordersBody.replaceChildren(); loginPassword.value = '';
   }
 
   function showDashboard(user) {
@@ -125,32 +106,29 @@
   }
 
   /* ═══════════ REALTIME LISTENERS ═══════════ */
-  let listenersActive = false;
-
-  function startRealtimeListeners() {
-    if (listenersActive) return;
-    listenersActive = true;
-
-    // Connection state
-    db.ref('.info/connected').on('value', (snap) => {
-      realtimeDot.classList.toggle('offline', !snap.val());
-    });
-
-    // Orders listener: value event for initial + updates
-    ordersRef.orderByChild('createdAt').on('value', (snap) => {
-      const newOrders = snap.val() || {};
-      const addedIds = Object.keys(newOrders).filter(id => !allOrders[id]);
-      allOrders = newOrders;
-      renderOrders(addedIds);
-      updateStats();
-    });
+  async function startRealtimeListeners() {
+    if (stream) return;
+    try {
+      const orders = await api('/api/admin/orders');
+      allOrders = Object.fromEntries(orders.map(order => [order.id, order]));
+      renderOrders(); updateStats();
+      stream = new EventSource('/api/admin/events');
+      stream.onopen = () => realtimeDot.classList.remove('offline');
+      stream.onerror = async () => {
+        realtimeDot.classList.add('offline'); realtimeDot.title = 'Mất kết nối, đang thử kết nối lại';
+        try { await api('/api/admin/orders'); } catch (error) { if (error.status === 401) showLogin(); }
+      };
+      stream.onmessage = event => {
+        const order = JSON.parse(event.data);
+        if (Array.isArray(order.orders)) { allOrders = Object.fromEntries(order.orders.map(item => [item.id, item])); renderOrders(); updateStats(); return; }
+        if (!order.id) return;
+        const fresh = !allOrders[order.id]; allOrders[order.id] = order; renderOrders(fresh ? [order.id] : []); updateStats();
+      };
+    } catch (error) { showToast(error.message, 'error'); showLogin(); }
   }
 
   function stopRealtimeListeners() {
-    if (!listenersActive || !db) return;
-    listenersActive = false;
-    ordersRef.off();
-    db.ref('.info/connected').off();
+    stream?.close(); stream = null;
   }
 
   /* ═══════════ RENDER ORDERS ═══════════ */
@@ -196,24 +174,21 @@
         <td>${time}</td>
         <td>${escapeHtml(order.phone || '—')}</td>
         <td><span class="package-badge ${pkg}">${pkgLabel}</span></td>
-        <td><span class="status-badge ${status}">${statusLabel}</span></td>
+        <td><span class="status-badge ${status}">${statusLabel}</span><small class="edit-count">Còn ${order.editsRemaining ?? 3}/3 lượt sửa</small>${order.linkRevoked ? '<small>Khách đã thu hồi link</small>' : ''}</td>
         <td class="link-cell">${order.letterUrl ? `<a href="${escapeAttr(letterHref)}" target="_blank" rel="noopener">${escapeHtml(letterPath)}</a>` : '—'}</td>
         <td>
           <div class="action-btns">
             <button class="action-btn info" data-action="preview" data-id="${order.id}" title="Xem trước thư">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-              Xem thư
+              Xem trước thư
             </button>
             ${status === 'pending' ? `
               <button class="action-btn confirm" data-action="pay" data-id="${order.id}" title="Xác nhận thanh toán">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Xác nhận TT
+                Xác nhận thanh toán
               </button>
             ` : ''}
-            <button class="action-btn warning" data-action="reset-edits" data-id="${order.id}" title="Đặt lại số lượt sửa">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-              Đặt lại sửa
-            </button>
+            <button class="action-btn warning" data-action="reset-edits" data-id="${order.id}">Đặt lại số lượt sửa</button>
             ${status !== 'revoked' ? `
               <button class="action-btn danger" data-action="revoke" data-id="${order.id}" title="Khóa/Thu hồi link">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -296,45 +271,31 @@
         );
         break;
       case 'reset-edits':
-        showConfirm(
-          'Đặt lại số lượt sửa',
-          `Đặt lại số lượt chỉnh sửa của đơn <strong>${escapeHtml(orderId)}</strong> về 0?`,
-          () => resetEditCount(orderId)
-        );
+        showConfirm('Đặt lại số lượt sửa', `Cấp lại đủ <strong>3 lượt sửa miễn phí</strong> cho đơn <strong>${escapeHtml(orderId)}</strong>?`, async () => {
+          try { allOrders[orderId] = await api(`/api/admin/orders/${orderId}/reset-edits`, { method: 'POST' }); renderOrders(); showToast('Đã cấp lại 3 lượt sửa miễn phí.', 'success'); }
+          catch (error) { showToast(error.message, 'error'); }
+        });
         break;
     }
   }
 
   async function updateOrderStatus(orderId, status) {
     try {
-      await ordersRef.child(orderId).update({
-        status,
-        updatedAt: firebase.database.ServerValue.TIMESTAMP
-      });
+      allOrders[orderId] = await api(`/api/admin/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      renderOrders(); updateStats();
       showToast(`Đã cập nhật trạng thái đơn ${orderId}`, 'success');
     } catch (err) {
       showToast('Lỗi cập nhật: ' + err.message, 'error');
     }
   }
 
-  async function resetEditCount(orderId) {
-    try {
-      await ordersRef.child(orderId).update({
-        editCount: 0,
-        updatedAt: firebase.database.ServerValue.TIMESTAMP
-      });
-      showToast(`Đã đặt lại lượt sửa cho ${orderId}`, 'success');
-    } catch (err) {
-      showToast('Lỗi: ' + err.message, 'error');
-    }
-  }
-
   /* ═══════════ LETTER PREVIEW ═══════════ */
   function showPreview(orderId, order) {
+    stopPreviewMusic();
     previewTitle.textContent = `Xem trước — ${orderId}`;
 
     const letterData = order.letterData || {};
-    const hasPhoto = !!letterData.photo;
+    const photos = letterData.photos?.length ? letterData.photos : letterData.photo ? [letterData.photo] : [];
     const hasAudio = !!letterData.audio;
 
     previewBody.innerHTML = `
@@ -377,15 +338,16 @@
             <span class="preview-value">${letterData.music ? 'Bật' : 'Tắt'}</span>
           </div>
         </div>
-        ${hasPhoto ? `
+        ${photos.length ? `
           <div class="preview-field">
             <span class="preview-label">Ảnh kỷ niệm</span>
-            <img class="preview-photo" src="${escapeAttr(letterData.photo)}" alt="Ảnh kỷ niệm" referrerpolicy="no-referrer" onerror="this.alt='Không tải được ảnh';this.style.display='none'">
+            ${photos.map(photo => `<img class="preview-photo" src="${escapeAttr(photo)}" alt="Ảnh kỷ niệm" referrerpolicy="no-referrer">`).join('')}
           </div>
         ` : ''}
         ${hasAudio ? `
           <div class="preview-field">
             <span class="preview-label">Link nhạc</span>
+            <audio controls preload="none" src="${escapeAttr(letterData.audio)}"></audio>
             <a class="preview-music-link" href="${escapeAttr(letterData.audio)}" target="_blank" rel="noopener">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
               ${escapeHtml(letterData.audio)}
@@ -404,6 +366,10 @@
       </div>
     `;
 
+    if (letterData.music && !hasAudio) {
+      const button = document.createElement('button'); button.className = 'action-btn info'; button.textContent = 'Nghe nhạc nền';
+      button.addEventListener('click', () => togglePreviewMusic(letterData.musicTrack, button)); previewBody.append(button);
+    }
     previewModal.showModal();
   }
 
@@ -467,11 +433,6 @@
       const password = loginPassword.value;
       if (!email || !password) return;
 
-      if (!auth) {
-        loginError.textContent = 'Không thể kết nối Firebase. Vui lòng tải lại trang hoặc thử lại sau.';
-        loginError.hidden = false;
-        return;
-      }
       doLogin(email, password);
     });
 
@@ -483,9 +444,8 @@
     });
 
     // Logout
-    logoutBtn.addEventListener('click', () => {
-      auth.signOut();
-    });
+    logoutBtn.addEventListener('click', async () => { try { await api('/api/admin/logout', { method: 'POST' }); showLogin(); } catch (error) { showToast(error.message, 'error'); } });
+    previewModal.addEventListener('close', () => { stopPreviewMusic(); previewBody.querySelectorAll('audio').forEach(audio => audio.pause()); });
 
     // Filter tabs
     $$('.filter-tab').forEach((tab) => {
@@ -547,18 +507,9 @@
   }
 
   /* ═══════════ BOOT ═══════════ */
-  function boot() {
+  async function boot() {
     setupEvents();
-
-    try {
-      const fbReady = initFirebase();
-      if (fbReady) {
-        setupAuth();
-      }
-    } catch (err) {
-      console.error('Firebase initialization failed:', err);
-      showToast('Không thể kết nối Firebase. Kiểm tra cấu hình rồi tải lại trang.', 'error');
-    }
+    try { await api('/api/admin/orders'); showDashboard({ email: 'Chủ shop' }); } catch { showLogin(); }
   }
 
   if (document.readyState === 'loading') {

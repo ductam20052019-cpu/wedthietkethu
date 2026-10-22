@@ -1,5 +1,7 @@
 # Tâm gửi — Dịch vụ thư điện tử
 
+> Tài liệu này mô tả phiên bản thư tĩnh cũ. Hệ thống đơn hàng và quản trị mới dùng máy chủ Node; xem [ORDER-SYSTEM.md](ORDER-SYSTEM.md). Firebase Hosting tĩnh không phục vụ API mới.
+
 Ứng dụng SPA độc lập ở `index.html`. Dự án này chỉ chứa dịch vụ thiết kế thư; dự án 20/10 trước đó được giữ riêng ở thư mục cũ.
 
 ## Chạy và đóng gói

@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handleApi, loadOrders, mediaPath } from './order-api.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const contentTypes = {
@@ -14,6 +15,7 @@ const contentTypes = {
   '.jpg': 'image/jpeg',
   '.webp': 'image/webp',
   '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
   '.webm': 'video/webm',
   '.ttf': 'font/ttf',
   '.woff': 'font/woff',
@@ -24,11 +26,6 @@ const contentTypes = {
 // Serve only public site files, including byte ranges for music/video seeking.
 export function createSiteServer() {
   return createServer(async (request, response) => {
-    if (!['GET', 'HEAD'].includes(request.method)) {
-      response.writeHead(405, { Allow: 'GET, HEAD' }).end();
-      return;
-    }
-
     let pathname;
     try {
       pathname = decodeURIComponent(new URL(request.url, 'http://site.invalid').pathname);
@@ -36,12 +33,20 @@ export function createSiteServer() {
       response.writeHead(400).end('Bad request');
       return;
     }
+    if (await handleApi(request, response, pathname, new URL(request.url, `http://${request.headers.host || 'localhost'}`))) return;
+    if (!['GET', 'HEAD'].includes(request.method)) {
+      response.writeHead(405, { Allow: 'GET, HEAD' }).end();
+      return;
+    }
     if (pathname === '/') pathname = '/index.html';
-    const allowed = ['/index.html', '/favicon.svg'].includes(pathname)
+    if (pathname === '/admin' || pathname === '/admin/') pathname = '/admin.html';
+    if (/^\/thu\/[A-Za-z0-9_-]{12}$/.test(pathname)) pathname = '/index.html';
+    const mediaFile = mediaPath(pathname);
+    const allowed = ['/index.html', '/admin.html', '/favicon.svg'].includes(pathname)
       || /^\/(assets|styles)\//.test(pathname)
-      || /^\/scripts\/[a-z-]+\.js$/.test(pathname);
-    const file = resolve(root, `.${pathname}`);
-    if (!allowed || !file.startsWith(root + sep) || !contentTypes[extname(file)]) {
+      || /^\/scripts\/[a-z-]+\.js$/.test(pathname) || Boolean(mediaFile);
+    const file = mediaFile || resolve(root, `.${pathname}`);
+    if (!allowed || (!mediaFile && !file.startsWith(root + sep)) || !contentTypes[extname(file)]) {
       response.writeHead(404).end('Not found');
       return;
     }
@@ -60,6 +65,7 @@ export function createSiteServer() {
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
+      ...(mediaFile ? { 'Content-Security-Policy': "default-src 'none'; sandbox", 'Content-Disposition': 'inline' } : {}),
     };
     let start = 0;
     let end = info.size - 1;
@@ -98,5 +104,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.error(error.message);
     process.exitCode = 1;
   });
-  server.listen(port, '0.0.0.0', () => console.log(`Tâm gửi: http://localhost:${server.address().port}`));
+  loadOrders().then(() => server.listen(port, '0.0.0.0', () => console.log(`Tâm gửi: http://localhost:${server.address().port}`))).catch(error => { console.error(error); process.exitCode = 1; });
 }

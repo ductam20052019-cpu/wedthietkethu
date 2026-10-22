@@ -894,3 +894,9 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+dialog:not([open]) { display: none !important; }
+[hidden] { display: none !important; }
+.table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.edit-count { display: block; margin-top: 6px; color: var(--text-secondary); white-space: nowrap; }
+.preview-field audio { max-width: 100%; }
+@media (max-width: 768px) { .action-btn { min-height: 44px; } }
