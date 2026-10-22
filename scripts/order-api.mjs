@@ -1,7 +1,7 @@
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { LETTER_PRICE, ESTIMATED_SHIPPING, GIFT_SETS, quoteFor } from './order-catalog.mjs';
+import { LETTER_PRICE, ESTIMATED_SHIPPING, getGiftSets, giftById, loadGiftCatalog, saveGiftSets, quoteFor } from './order-catalog.mjs';
 
 const databaseFile = () => resolve(process.env.ORDER_DATA_FILE || 'data/orders.json');
 const orders = new Map();
@@ -24,7 +24,7 @@ const isAdmin = req => {
 };
 const isOpen = order => order.status === 'paid' && !order.linkRevoked && (!order.expiresAt || order.expiresAt > Date.now());
 const publicOrder = order => ({ id: order.id, status: order.status, package: order.package, createdAt: order.createdAt, updatedAt: order.updatedAt, letterData: isOpen(order) && !order.passwordHash ? order.letterData : undefined, letterUrl: order.letterUrl, passwordRequired: Boolean(order.passwordHash), expiresAt: order.expiresAt || null, linkRevoked: Boolean(order.linkRevoked) });
-const ownerOrder = order => ({ ...publicOrder(order), letterData: order.letterData, phone: order.phone, giftSetId: order.giftSetId || null, shipping: order.shipping || null, shippingStatus: order.shippingStatus || null, quote: order.quote || null, editCount: order.editCount || 0, editsRemaining: Math.max(0, 3 - (order.editCount || 0)) });
+const ownerOrder = order => ({ ...publicOrder(order), letterData: order.letterData, phone: order.phone, giftSetId: order.giftSetId || null, giftVariant: order.giftVariant || null, shipping: order.shipping || null, shippingStatus: order.shippingStatus || null, quote: order.quote || null, editCount: order.editCount || 0, editsRemaining: Math.max(0, 3 - (order.editCount || 0)) });
 const validShipping = value => value && typeof value === 'object' && !Array.isArray(value)
   && ['recipientName', 'recipientPhone', 'address', 'deliveryDate', 'timeNote', 'cardNote', 'buyerPhone'].every(key => typeof value[key] === 'string')
   && value.recipientName.trim().length >= 2 && value.recipientName.length <= 100
@@ -53,6 +53,8 @@ const validLetter = data => data && typeof data === 'object' && !Array.isArray(d
 const owner = (order, req) => order && equal(hash(req.headers['x-owner-token'] || ''), order.ownerHash);
 const mediaRoot = () => resolve(process.env.ORDER_MEDIA_DIR || 'data/media');
 export function mediaPath(pathname) {
+  const gift = /^\/media\/gifts\/([a-z0-9-]{2,32})\/([a-f0-9]{32})\.webp$/.exec(pathname);
+  if (gift) return resolve(mediaRoot(), 'gifts', gift[1], `${gift[2]}.webp`);
   const match = /^\/media\/(YTGB[A-F0-9]{32})\/([a-f0-9]{32})\.(webp|mp3|m4a)$/.exec(pathname);
   return match ? resolve(mediaRoot(), match[1], `${match[2]}.${match[3]}`) : null;
 }
@@ -63,6 +65,7 @@ const limited = req => {
 };
 
 export async function loadOrders() {
+  await loadGiftCatalog();
   try { for (const item of JSON.parse(await readFile(databaseFile(), 'utf8'))) if (idPattern.test(item.id)) orders.set(item.id, item); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
@@ -70,7 +73,7 @@ export async function loadOrders() {
 export async function handleApi(req, res, pathname, url) {
   if (!pathname.startsWith('/api/')) return false;
   try {
-    if (pathname === '/api/catalog' && req.method === 'GET') { json(res, 200, { letterPrice: LETTER_PRICE, estimatedShipping: ESTIMATED_SHIPPING, giftSets: GIFT_SETS, estimated: true }); return true; }
+    if (pathname === '/api/catalog' && req.method === 'GET') { json(res, 200, { letterPrice: LETTER_PRICE, estimatedShipping: ESTIMATED_SHIPPING, giftSets: getGiftSets(), estimated: true }); return true; }
     if (pathname === '/api/admin/login' && req.method === 'POST') {
       if (limited(req)) return json(res, 429, { error: 'Thử lại sau một phút.' }), true;
       const input = await body(req);
@@ -85,6 +88,42 @@ export async function handleApi(req, res, pathname, url) {
       const token = sessionToken(req); adminSessions.delete(token);
       for (const client of clients) if (client.admin && sessionToken(client.req) === token) client.res.end();
       json(res, 200, { ok: true }, { 'Set-Cookie': 'admin_session=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0' }); return true;
+    }
+    if (pathname === '/api/admin/gifts' && req.method === 'GET') {
+      if (!isAdmin(req)) return json(res, 401, { error: 'Cần đăng nhập.' }), true;
+      json(res, 200, { giftSets: getGiftSets(), letterPrice: LETTER_PRICE, estimatedShipping: ESTIMATED_SHIPPING }); return true;
+    }
+    if (pathname === '/api/admin/gifts' && req.method === 'PUT') {
+      if (!isAdmin(req)) return json(res, 401, { error: 'Cần đăng nhập.' }), true;
+      const input = await body(req);
+      const updated = await saveGiftSets(input.giftSets);
+      json(res, 200, { giftSets: updated, letterPrice: LETTER_PRICE, estimatedShipping: ESTIMATED_SHIPPING }); return true;
+    }
+    const giftUpload = /^\/api\/admin\/gifts\/([a-z0-9-]{2,32})\/images$/.exec(pathname);
+    if (giftUpload && req.method === 'POST') {
+      if (!isAdmin(req)) return json(res, 401, { error: 'Cần đăng nhập.' }), true;
+      const gift = giftById(giftUpload[1]); if (!gift) return json(res, 404, { error: 'Không tìm thấy set quà.' }), true;
+      if (req.headers['content-type'] !== 'image/webp') return json(res, 415, { error: 'Ảnh cần được nén sang WebP trước khi tải lên.' }), true;
+      const chunks = []; let size = 0;
+      for await (const chunk of req) { size += chunk.length; if (size > 500000) return json(res, 413, { error: 'Ảnh sau nén cần nhỏ hơn 500KB.' }), true; chunks.push(chunk); }
+      const bytes = Buffer.concat(chunks);
+      if (bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WEBP') return json(res, 415, { error: 'Tệp tải lên không phải ảnh WebP hợp lệ.' }), true;
+      if ((gift.images || []).length >= 5) return json(res, 409, { error: 'Mỗi set quà tối đa 5 ảnh.' }), true;
+      const filename = `${randomBytes(16).toString('hex')}.webp`;
+      const folder = resolve(mediaRoot(), 'gifts', gift.id); await mkdir(folder, { recursive: true }); await writeFile(resolve(folder, filename), bytes);
+      const imageUrl = `/media/gifts/${gift.id}/${filename}`;
+      await saveGiftSets(getGiftSets().map(item => item.id === gift.id ? { ...item, images: [...item.images, imageUrl] } : item));
+      json(res, 201, { imageUrl, giftSet: giftById(gift.id) }); return true;
+    }
+    const giftImageDelete = /^\/api\/admin\/gifts\/([a-z0-9-]{2,32})\/images\/([a-f0-9]{32}\.webp)$/.exec(pathname);
+    if (giftImageDelete && req.method === 'DELETE') {
+      if (!isAdmin(req)) return json(res, 401, { error: 'Cần đăng nhập.' }), true;
+      const gift = giftById(giftImageDelete[1]); if (!gift) return json(res, 404, { error: 'Không tìm thấy set quà.' }), true;
+      const imageUrl = `/media/gifts/${gift.id}/${giftImageDelete[2]}`;
+      if (!gift.images.includes(imageUrl)) return json(res, 404, { error: 'Không tìm thấy ảnh.' }), true;
+      await unlink(resolve(mediaRoot(), 'gifts', gift.id, giftImageDelete[2]));
+      const updated = await saveGiftSets(getGiftSets().map(item => item.id === gift.id ? { ...item, images: item.images.filter(image => image !== imageUrl) } : item));
+      json(res, 200, { giftSets: updated }); return true;
     }
     if (pathname === '/api/admin/orders' && req.method === 'GET') { if (!isAdmin(req)) return json(res, 401, { error: 'Cần đăng nhập.' }), true; json(res, 200, [...orders.values()].map(ownerOrder)); return true; }
     if (pathname === '/api/admin/events' && req.method === 'GET') { if (!isAdmin(req)) return json(res, 401, { error: 'Cần đăng nhập.' }), true; return events(req, res, { admin: true }), true; }
@@ -118,11 +157,17 @@ export async function handleApi(req, res, pathname, url) {
       if (!validLetter(input.letterData) || !/^0\d{8,10}$/.test(input.phone || '') || !/^\d{4}$/.test(input.pin || '')) return json(res, 400, { error: 'Cần số điện thoại, PIN 4 số và nội dung thư hợp lệ.' }), true;
       const packageType = input.package === 'gift' ? 'gift' : input.package === 'online' || !input.package ? 'online' : null;
       const quote = packageType && quoteFor(packageType, input.giftSetId);
-      if (!quote || (packageType === 'gift' && !validShipping(input.shipping))) return json(res, 400, { error: 'Thông tin gói quà hoặc địa chỉ giao hàng không hợp lệ.' }), true;
+      const giftDefinition = packageType === 'gift' ? giftById(input.giftSetId) : null;
+      const customGift = input.giftSetId === 'custom';
+      const invalidGift = packageType === 'gift' && (
+        !validShipping(input.shipping)
+        || (!customGift && (!giftDefinition || !giftDefinition.variants.includes(input.giftVariant)))
+      );
+      if (!quote || invalidGift) return json(res, 400, { error: 'Thông tin gói quà, phân loại hoặc địa chỉ giao hàng không hợp lệ.' }), true;
       const id = 'YTGB' + randomBytes(16).toString('hex').toUpperCase();
       const ownerToken = randomBytes(24).toString('hex');
       const slug = randomBytes(9).toString('base64url');
-      const order = { id, slug, phone: input.phone, pinHash: hash(`${id}:${input.pin}`), ownerHash: hash(ownerToken), package: packageType, giftSetId: packageType === 'gift' ? input.giftSetId : null, shipping: packageType === 'gift' ? input.shipping : null, shippingStatus: packageType === 'gift' ? 'preparing' : null, quote, status: 'pending', createdAt: Date.now(), updatedAt: Date.now(), letterData: input.letterData, letterUrl: `/thu/${slug}`, editCount: 0 };
+      const order = { id, slug, phone: input.phone, pinHash: hash(`${id}:${input.pin}`), ownerHash: hash(ownerToken), package: packageType, giftSetId: packageType === 'gift' ? input.giftSetId : null, giftVariant: packageType === 'gift' && giftDefinition ? { label: giftDefinition.variantLabel, value: input.giftVariant } : null, shipping: packageType === 'gift' ? input.shipping : null, shippingStatus: packageType === 'gift' ? 'preparing' : null, quote, status: 'pending', createdAt: Date.now(), updatedAt: Date.now(), letterData: input.letterData, letterUrl: `/thu/${slug}`, editCount: 0 };
       orders.set(id, order); await persist(); notify(order); json(res, 201, { ...ownerOrder(order), ownerToken }); return true;
     }
     if (pathname === '/api/orders/recover' && req.method === 'POST') {

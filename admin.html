@@ -75,6 +75,17 @@
       </div>
     </header>
 
+    <nav class="admin-section-tabs" aria-label="Quản trị">
+      <button type="button" class="active" data-admin-section="orders">Đơn hàng</button>
+      <button type="button" data-admin-section="gifts">Quản lý Set Quà</button>
+    </nav>
+
+    <section id="gift-management" class="gift-management" hidden>
+      <div class="gift-management-heading"><div><span class="section-kicker">DANH MỤC SẢN PHẨM</span><h1>Quản lý Set Quà</h1><p>Chỉnh sửa nội dung, giá, phân loại và tải tối đa 5 ảnh WebP cho mỗi set.</p></div><button type="button" class="btn-primary small" id="save-gift-catalog">Lưu thay đổi</button></div>
+      <p class="gift-storage-note">Ảnh nằm trong ORDER_MEDIA_DIR, nội dung set quà trong GIFT_CATALOG_FILE. Trên Render, cả hai đường dẫn cần trỏ vào ổ đĩa bền vững để giữ dữ liệu sau khi máy chủ khởi động lại.</p>
+      <div id="gift-management-grid" class="gift-management-grid"></div>
+    </section>
+
     <!-- Stats Row -->
     <div class="stats-row">
       <div class="stat-card" id="stat-total">

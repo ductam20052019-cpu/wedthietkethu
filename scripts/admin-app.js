@@ -43,6 +43,9 @@
   const confirmMessage = $('#confirm-message');
   const confirmOk = $('#confirm-ok');
   const toastEl = $('#admin-toast');
+  const giftManagement = $('#gift-management');
+  const giftManagementGrid = $('#gift-management-grid');
+  let adminGiftSets = [];
 
   let stream;
   let allOrders = {};
@@ -98,8 +101,94 @@
   function showDashboard(user) {
     loginScreen.hidden = true;
     dashboard.hidden = false;
+    setAdminSection('orders');
     adminEmail.textContent = user.email;
+    loadGiftManagement();
     startRealtimeListeners();
+  }
+
+  function setAdminSection(section) {
+    const gifts = section === 'gifts';
+    giftManagement.hidden = !gifts;
+    document.querySelectorAll('#dashboard > .stats-row, #dashboard > .filters-bar, #dashboard > .table-container').forEach(node => { node.hidden = gifts; });
+    $$('[data-admin-section]').forEach(button => button.classList.toggle('active', button.dataset.adminSection === section));
+  }
+
+  async function loadGiftManagement() {
+    try {
+      const result = await api('/api/admin/gifts');
+      adminGiftSets = result.giftSets;
+      renderGiftManagement();
+    } catch (error) { showToast(`Không tải được danh mục quà: ${error.message}`, 'error'); }
+  }
+
+  function renderGiftManagement() {
+    giftManagementGrid.innerHTML = adminGiftSets.map(gift => `
+      <article class="gift-admin-card" data-gift-id="${escapeAttr(gift.id)}">
+        <div class="gift-admin-title"><img src="${escapeAttr(gift.images?.[0] || gift.image)}" alt=""><h2>${escapeHtml(gift.name)}</h2></div>
+        <label>Tên set quà<input data-field="name" maxlength="100" value="${escapeAttr(gift.name)}"></label>
+        <label>Giá dự kiến (đ)<input data-field="price" type="number" min="0" max="100000000" step="1000" value="${gift.price}"></label>
+        <label>Mô tả ngắn<input data-field="description" maxlength="180" value="${escapeAttr(gift.description || '')}"></label>
+        <label>Trong hộp (mỗi dòng một thành phần)<textarea data-field="components" rows="5">${escapeHtml((gift.components || []).join('\n'))}</textarea></label>
+        <label>Tên phân loại<input data-field="variantLabel" maxlength="60" value="${escapeAttr(gift.variantLabel || '')}"></label>
+        <label>Các lựa chọn (phân cách bằng dấu phẩy)<input data-field="variants" maxlength="720" value="${escapeAttr((gift.variants || []).join(', '))}"></label>
+        <label class="gift-upload-label">Tải ảnh sản phẩm (tối đa 5)<input data-gift-images type="file" accept="image/*" multiple></label>
+        <div class="gift-admin-images">${(gift.images || []).map(url => `<figure><img src="${escapeAttr(url)}" alt="Ảnh sản phẩm"><button type="button" data-remove-gift-image="${escapeAttr(url.split('/').pop())}" aria-label="Xóa ảnh">×</button></figure>`).join('') || '<p>Chưa có ảnh thật. Đang dùng hình minh họa.</p>'}</div>
+      </article>`).join('');
+  }
+
+  function updateGiftCardImages(gift) {
+    const card = giftManagementGrid.querySelector(`[data-gift-id="${CSS.escape(gift.id)}"]`);
+    if (!card) return;
+    const preview = card.querySelector('.gift-admin-title img'); if (preview) preview.src = gift.images?.[0] || gift.image;
+    const host = card.querySelector('.gift-admin-images');
+    host.innerHTML = (gift.images || []).map(url => `<figure><img src="${escapeAttr(url)}" alt="Ảnh sản phẩm"><button type="button" data-remove-gift-image="${escapeAttr(url.split('/').pop())}" aria-label="Xóa ảnh">×</button></figure>`).join('') || '<p>Chưa có ảnh thật. Đang dùng hình minh họa.</p>';
+  }
+
+  async function uploadGiftImages(input) {
+    const card = input.closest('.gift-admin-card'); const gift = adminGiftSets.find(item => item.id === card?.dataset.giftId);
+    if (!gift) return;
+    const files = [...input.files]; input.value = '';
+    if (files.length > 5 - (gift.images || []).length) { showToast('Mỗi set quà tối đa 5 ảnh.', 'error'); return; }
+    for (const file of files) {
+      try {
+        const blob = await compressGiftPhoto(file);
+        const response = await fetch(`/api/admin/gifts/${gift.id}/images`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'image/webp' }, body: blob });
+        const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Tải ảnh thất bại.');
+        const index = adminGiftSets.findIndex(item => item.id === gift.id); adminGiftSets[index] = result.giftSet; updateGiftCardImages(result.giftSet);
+      } catch (error) { showToast(error.message, 'error'); return; }
+    }
+    showToast('Đã tải ảnh sản phẩm lên.', 'success');
+  }
+
+  async function removeGiftImage(button) {
+    const card = button.closest('.gift-admin-card'), id = card?.dataset.giftId, filename = button.dataset.removeGiftImage;
+    try {
+      const result = await api(`/api/admin/gifts/${id}/images/${filename}`, { method: 'DELETE' });
+      adminGiftSets = result.giftSets; updateGiftCardImages(adminGiftSets.find(item => item.id === id)); showToast('Đã xóa ảnh sản phẩm.', 'success');
+    } catch (error) { showToast(error.message, 'error'); }
+  }
+
+  async function compressGiftPhoto(file) {
+    const bitmap = await createImageBitmap(file); const scale = Math.min(1, 1200 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close();
+    let quality = .82, blob;
+    do { blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality)); quality -= .1; } while (blob?.size > 500000 && quality >= .52);
+    if (!blob || blob.size > 500000) throw new Error('Ảnh vẫn lớn hơn 500KB sau khi nén.');
+    return blob;
+  }
+
+  async function saveGiftCatalog() {
+    const next = [...giftManagementGrid.querySelectorAll('.gift-admin-card')].map(card => {
+      const original = adminGiftSets.find(item => item.id === card.dataset.giftId);
+      const field = name => card.querySelector(`[data-field="${name}"]`).value.trim();
+      return { ...original, name: field('name'), price: Number(field('price')), description: field('description'), components: field('components').split('\n').map(value => value.trim()).filter(Boolean), variantLabel: field('variantLabel'), variants: field('variants').split(',').map(value => value.trim()).filter(Boolean) };
+    });
+    try {
+      const result = await api('/api/admin/gifts', { method: 'PUT', body: JSON.stringify({ giftSets: next }) });
+      adminGiftSets = result.giftSets; renderGiftManagement(); showToast('Đã lưu thông tin các set quà.', 'success');
+    } catch (error) { showToast(error.message, 'error'); }
   }
 
   /* ═══════════ REALTIME LISTENERS ═══════════ */
@@ -378,7 +467,7 @@
             </a>
           </div>
         ` : ''}
-        ${order.package === 'gift' && order.shipping ? `<div class="preview-field shipping-detail"><span class="preview-label">CẦN SHIP QUÀ · ${escapeHtml({ preparing: 'Đang chuẩn bị quà', sent: 'Đã gửi ship', delivered: 'Đã giao thành công' }[order.shippingStatus] || 'Đang chuẩn bị quà')}</span><span class="preview-value">Set quà: ${escapeHtml(order.giftSetId || '—')}<br>Người nhận: ${escapeHtml(order.shipping.recipientName)} · ${escapeHtml(order.shipping.recipientPhone)}<br>Địa chỉ: ${escapeHtml(order.shipping.address)}<br>Ngày hẹn: ${escapeHtml(order.shipping.deliveryDate)} · ${escapeHtml(order.shipping.timeNote || 'Không ghi chú giờ')}<br>Lời nhắn trên thiệp: ${escapeHtml(order.shipping.cardNote || 'Không có')}<br>SĐT/Zalo người đặt (giữ bí mật): ${escapeHtml(order.shipping.buyerPhone)}<br>Tổng dự kiến: ${order.quote?.total == null ? 'Shop báo giá' : new Intl.NumberFormat('vi-VN').format(order.quote.total) + 'đ'}</span></div>` : ''}
+        ${order.package === 'gift' && order.shipping ? `<div class="preview-field shipping-detail"><span class="preview-label">CẦN SHIP QUÀ · ${escapeHtml({ preparing: 'Đang chuẩn bị quà', sent: 'Đã gửi ship', delivered: 'Đã giao thành công' }[order.shippingStatus] || 'Đang chuẩn bị quà')}</span><span class="preview-value">Set quà: ${escapeHtml(order.giftSetId || '—')}<br>${order.giftVariant ? `${escapeHtml(order.giftVariant.label)}: ${escapeHtml(order.giftVariant.value)}<br>` : ''}Người nhận: ${escapeHtml(order.shipping.recipientName)} · ${escapeHtml(order.shipping.recipientPhone)}<br>Địa chỉ: ${escapeHtml(order.shipping.address)}<br>Ngày hẹn: ${escapeHtml(order.shipping.deliveryDate)} · ${escapeHtml(order.shipping.timeNote || 'Không ghi chú giờ')}<br>Lời nhắn trên thiệp: ${escapeHtml(order.shipping.cardNote || 'Không có')}<br>SĐT/Zalo người đặt (giữ bí mật): ${escapeHtml(order.shipping.buyerPhone)}<br>Tổng dự kiến: ${order.quote?.total == null ? 'Shop báo giá' : new Intl.NumberFormat('vi-VN').format(order.quote.total) + 'đ'}</span></div>` : ''}
       </div>
     `;
 
@@ -438,6 +527,10 @@
 
   /* ═══════════ EVENT LISTENERS ═══════════ */
   function setupEvents() {
+    $$('[data-admin-section]').forEach(button => button.addEventListener('click', () => setAdminSection(button.dataset.adminSection)));
+    $('#save-gift-catalog').addEventListener('click', saveGiftCatalog);
+    giftManagementGrid.addEventListener('change', event => { if (event.target.matches('[data-gift-images]')) uploadGiftImages(event.target); });
+    giftManagementGrid.addEventListener('click', event => { const button = event.target.closest('[data-remove-gift-image]'); if (button) removeGiftImage(button); });
     // Login form
     loginForm.addEventListener('submit', (e) => {
       e.preventDefault();
