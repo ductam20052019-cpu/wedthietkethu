@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f0f1a">
+  <title>Quản trị — Yêu thương gửi bạn</title>
+  <meta name="description" content="Bảng điều khiển quản trị đơn hàng dành cho chủ shop Yêu thương gửi bạn.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="styles/admin.css">
+</head>
+<body>
+
+  <!-- ═══════════════ LOGIN SCREEN ═══════════════ -->
+  <section id="login-screen" class="login-screen">
+    <div class="login-backdrop">
+      <div class="login-orb orb-1"></div>
+      <div class="login-orb orb-2"></div>
+      <div class="login-orb orb-3"></div>
+    </div>
+    <form id="login-form" class="login-card" autocomplete="off">
+      <div class="login-logo">
+        <span class="logo-heart">♡</span>
+        <h1>Yêu thương gửi bạn</h1>
+        <p class="login-subtitle">Bảng điều khiển dành cho chủ shop</p>
+      </div>
+      <div class="field-group">
+        <label for="login-email">Email</label>
+        <div class="input-wrap">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M22 7L12 14 2 7"/></svg>
+          <input id="login-email" type="email" required placeholder="admin@yeugui.vn" autocomplete="email">
+        </div>
+      </div>
+      <div class="field-group">
+        <label for="login-password">Mật khẩu</label>
+        <div class="input-wrap">
+          <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <input id="login-password" type="password" required placeholder="••••••••" autocomplete="current-password">
+          <button type="button" id="toggle-password" class="toggle-password" aria-label="Hiện mật khẩu" tabindex="-1">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <p id="login-error" class="login-error" role="alert" hidden></p>
+      <button type="submit" id="login-btn" class="btn-primary">
+        <span>Đăng nhập</span>
+        <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </form>
+  </section>
+
+  <!-- ═══════════════ DASHBOARD ═══════════════ -->
+  <section id="dashboard" class="dashboard" hidden>
+    <!-- Top Bar -->
+    <header id="topbar" class="topbar">
+      <div class="topbar-brand">
+        <span class="logo-heart small">♡</span>
+        <span class="topbar-title">Yêu thương gửi bạn</span>
+        <span class="topbar-badge">ADMIN</span>
+      </div>
+      <div class="topbar-actions">
+        <span id="realtime-dot" class="realtime-dot" title="Đang kết nối Realtime">
+          <span class="dot-ping"></span>
+          <span class="dot-core"></span>
+        </span>
+        <span id="admin-email" class="admin-email"></span>
+        <button id="logout-btn" class="btn-ghost" title="Đăng xuất">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card" id="stat-total">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="stat-info"><span class="stat-value">0</span><span class="stat-label">Tổng đơn hàng</span></div>
+      </div>
+      <div class="stat-card" id="stat-pending">
+        <div class="stat-icon pending">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="stat-info"><span class="stat-value">0</span><span class="stat-label">Đơn chờ duyệt</span></div>
+      </div>
+      <div class="stat-card" id="stat-paid">
+        <div class="stat-icon paid">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div class="stat-info"><span class="stat-value">0</span><span class="stat-label">Đã thanh toán</span></div>
+      </div>
+      <div class="stat-card" id="stat-revenue">
+        <div class="stat-icon revenue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </div>
+        <div class="stat-info"><span class="stat-value">0₫</span><span class="stat-label">Doanh thu</span></div>
+      </div>
+    </div>
+
+    <!-- Filters & Search -->
+    <div class="filters-bar">
+      <div class="filter-tabs" role="group" aria-label="Lọc đơn hàng">
+        <button class="filter-tab active" data-filter="all">Tất cả</button>
+        <button class="filter-tab" data-filter="pending">Chờ duyệt</button>
+        <button class="filter-tab" data-filter="paid">Đã thanh toán</button>
+        <button class="filter-tab" data-filter="revoked">Đã thu hồi</button>
+      </div>
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search-input" type="search" placeholder="Tìm mã đơn, SĐT khách…" aria-label="Tìm kiếm đơn hàng">
+      </div>
+    </div>
+
+    <!-- Orders Table -->
+    <div class="table-container">
+      <table id="orders-table" class="orders-table">
+        <thead>
+          <tr>
+            <th>Mã đơn</th>
+            <th>Thời gian</th>
+            <th>SĐT khách</th>
+            <th>Gói dịch vụ</th>
+            <th>Trạng thái</th>
+            <th>Link thư</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="orders-body">
+          <!-- Rows rendered by JS -->
+        </tbody>
+      </table>
+      <div id="empty-state" class="empty-state" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        <p>Chưa có đơn hàng nào</p>
+        <span>Đơn hàng mới sẽ tự động xuất hiện tại đây</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ LETTER PREVIEW MODAL ═══════════════ -->
+  <dialog id="preview-modal" class="modal-overlay">
+    <div class="modal-panel preview-modal-panel">
+      <div class="modal-header">
+        <h2 id="preview-modal-title">Xem trước thư</h2>
+        <button class="modal-close" data-close aria-label="Đóng">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="preview-modal-body">
+        <!-- Letter preview rendered here -->
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ═══════════════ CONFIRM MODAL ═══════════════ -->
+  <dialog id="confirm-modal" class="modal-overlay">
+    <div class="modal-panel confirm-modal-panel">
+      <div class="modal-header">
+        <h2 id="confirm-title">Xác nhận</h2>
+        <button class="modal-close" data-close aria-label="Đóng">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" data-close>Hủy</button>
+        <button id="confirm-ok" class="btn-primary small">Xác nhận</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ═══════════════ TOAST ═══════════════ -->
+  <div id="admin-toast" class="admin-toast" role="status" hidden></div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="scripts/admin-app.js"></script>
+</body>
+</html>
