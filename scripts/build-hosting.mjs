@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const output = join(root, 'public');
 await rm(output, { recursive: true, force: true });
 await mkdir(join(output, 'scripts'), { recursive: true });
-for (const name of ['index.html', 'favicon.svg', 'assets', 'styles']) {
+for (const name of ['index.html', 'admin.html', 'favicon.svg', 'assets', 'styles']) {
   await cp(join(root, name), join(output, name), { recursive: true });
 }
 for (const name of await readdir(join(root, 'scripts'))) {
